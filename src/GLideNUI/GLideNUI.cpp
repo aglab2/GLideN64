@@ -8,11 +8,9 @@
 #include "Settings.h"
 #include "../Config.h"
 
-#ifdef QT_STATICPLUGIN
 #include <QtPlugin>
 Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
 Q_IMPORT_PLUGIN(QICOPlugin)
-#endif
 
 //#define RUN_DIALOG_IN_THREAD
 
