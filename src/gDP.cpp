@@ -22,6 +22,7 @@
 #include "Performance.h"
 #include "DisplayWindow.h"
 #include <Graphics/Context.h>
+#include "Log.h"
 
 using namespace std;
 
@@ -320,6 +321,34 @@ void gDPSetTileSize( u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt )
 	gDP.tiles[tile].fult = _FIXED2FLOAT( ult, 2 );
 	gDP.tiles[tile].flrs = _FIXED2FLOAT( lrs, 2 );
 	gDP.tiles[tile].flrt = _FIXED2FLOAT( lrt, 2 );
+
+	// Force maskT and maskS for given sizes if we go too far
+	// Get normal sizes for lrs/lrt
+	u32 lrsizes = gDP.tiles[tile].lrs + 1;
+	u32 lrsizet = gDP.tiles[tile].lrt + 1;
+
+	if (lrsizes == 16 && lrsizet == 2)
+	{
+		// Get normal sizes for masks/maskt
+		u32 masksizes = 1 << gDP.tiles[tile].masks;
+		u32 masksizet = 1 << gDP.tiles[tile].maskt;
+
+		// Do validity check
+		// TODO: Not sure if this actually works
+		if (masksizes > lrsizes)
+		{
+			unsigned long index = 0;
+			_BitScanForward(&index, lrsizes);
+			//gDP.tiles[tile].masks = index;
+		}
+
+		if (masksizet > lrsizet)
+		{
+			unsigned long index = 0;
+			_BitScanForward(&index, lrsizet);
+			//gDP.tiles[tile].maskt = index;
+		}
+	}
 
 	gDP.changed |= CHANGED_TILE;
 

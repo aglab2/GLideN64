@@ -189,7 +189,8 @@ void PluginAPI::RomClosed()
 	m_pRspThread = nullptr;
 #else
 	TFH.dumpcache();
-	dwnd().stop();
+	DisplayWindow& dw = dwnd();
+	dw.stop();
 	GBI.destroy();
 #endif
 }

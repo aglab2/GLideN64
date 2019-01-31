@@ -208,13 +208,33 @@ graphics::ObjectHandle ContextImpl::createTexture(graphics::Parameter _target)
 	return m_createTexture->createTexture(_target);
 }
 
+static int filter(unsigned int code, struct _EXCEPTION_POINTERS *ep)
+{
+	if (code == EXCEPTION_ACCESS_VIOLATION)
+	{
+		return EXCEPTION_EXECUTE_HANDLER;
+	}
+	else
+	{
+		return EXCEPTION_CONTINUE_SEARCH;
+	};
+}
+
 void ContextImpl::deleteTexture(graphics::ObjectHandle _name)
 {
-	u32 glName(_name);
-	glDeleteTextures(1, &glName);
-	m_init2DTexture->reset(_name);
+	// Literally walkaround pj64 1.6 memery
+	__try
+	{
+		u32 glName(_name);
+		glDeleteTextures(1, &glName);
+		m_init2DTexture->reset(_name);
 
-	m_cachedFunctions->getTexParams()->erase(u32(_name));
+		m_cachedFunctions->getTexParams()->erase(u32(_name));
+	}
+	__except(filter(GetExceptionCode(), GetExceptionInformation()))
+	{
+
+	}
 }
 
 void ContextImpl::init2DTexture(const graphics::Context::InitTextureParams & _params)
