@@ -1743,7 +1743,7 @@ void gSPTexture( f32 sc, f32 tc, u32 level, u32 tile, u32 on )
 {
 	gSP.texture.on = on;
 	if (on == 0) {
-		gDPSetEnvColor(0, 0, 0, 0);
+		gDPSetEnvColor(0, 0, 0, 0xff);
 		DebugMsg(DEBUG_NORMAL, "gSPTexture skipped b/c of off\n");
 		return;
 	}
