@@ -340,6 +340,7 @@ void gDPSetTileSize( u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt )
 			unsigned long index = 0;
 			_BitScanForward(&index, lrsizes);
 			gDP.tiles[tile].masks = index;
+			gDP.tiles[tile].originalMaskS = index;
 		}
 
 		if (masksizet > lrsizet)
@@ -347,6 +348,7 @@ void gDPSetTileSize( u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt )
 			unsigned long index = 0;
 			_BitScanForward(&index, lrsizet);
 			gDP.tiles[tile].maskt = index;
+			gDP.tiles[tile].originalMaskT = index;
 		}
 	}
 
