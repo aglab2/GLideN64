@@ -170,6 +170,18 @@ void PluginAPI::ProcessRDPList()
 #endif
 }
 
+static int filter(unsigned int code, struct _EXCEPTION_POINTERS *ep)
+{
+	if (code == EXCEPTION_ACCESS_VIOLATION)
+	{
+		return EXCEPTION_EXECUTE_HANDLER;
+	}
+	else
+	{
+		return EXCEPTION_CONTINUE_SEARCH;
+	};
+}
+
 void PluginAPI::RomClosed()
 {
 	if (!m_bRomOpen)
@@ -189,8 +201,13 @@ void PluginAPI::RomClosed()
 	m_pRspThread = nullptr;
 #else
 	TFH.dumpcache();
-	DisplayWindow& dw = dwnd();
-	dw.stop();
+
+	__try
+	{
+		DisplayWindow& dw = dwnd();
+		dw.stop();
+	}
+	__except (filter(GetExceptionCode(), GetExceptionInformation())) { }
 	GBI.destroy();
 #endif
 }
