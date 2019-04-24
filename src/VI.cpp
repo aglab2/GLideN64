@@ -31,6 +31,7 @@ u16 VI_GetMaxBufferHeight(u16 _width)
 
 void VI_UpdateSize()
 {
+	if (*REG.VI_V_SYNC == 0x0627) *REG.VI_V_SYNC = 0x0834;
 	const f32 xScale = _FIXED2FLOAT( _SHIFTR( *REG.VI_X_SCALE, 0, 12 ), 10 );
 //	f32 xOffset = _FIXED2FLOAT( _SHIFTR( *REG.VI_X_SCALE, 16, 12 ), 10 );
 
@@ -48,6 +49,7 @@ void VI_UpdateSize()
 		VI.widthPrev = VI.width;
 
 	VI.real_height = vEnd > vStart ? (((vEnd - vStart) >> 1) * vScale) >> 10 : 0;
+
 	VI.width = *REG.VI_WIDTH;
 	VI.interlaced = (*REG.VI_STATUS & 0x40) != 0;
 
