@@ -26,6 +26,7 @@ extern u32 rectDepthBufferCopyFrame;
 #define RSP_SegmentToPhysical( segaddr ) ((gSP.segment[(segaddr >> 24) & 0x0F] + (segaddr & RDRAMSize)) & RDRAMSize)
 
 void RSP_Init();
+void RSP_ProcessDList_Trivial();
 void RSP_ProcessDList();
 Mtx RSP_LoadMatrix( u32 address );
 void RSP_CheckDLCounter();

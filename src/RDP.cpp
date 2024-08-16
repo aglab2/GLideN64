@@ -567,12 +567,16 @@ inline u32 READ_RDP_DATA(u32 address)
 		return rdram[address>>2];
 }
 
+void RDP_ProcessRDPList_Trivial()
+{
+	dp_start = dp_current = dp_end;
+	gDPFullSync();
+}
+
 void RDP_ProcessRDPList()
 {
 	if (ConfigOpen || dwnd().isResizeWindow()) {
-		dp_start = dp_current = dp_end;
-		gDPFullSync();
-		return;
+		return RDP_ProcessRDPList_Trivial();
 	}
 
 	const u32 length = dp_end - dp_current;

@@ -1,25 +1,31 @@
 #include "QueueExecutor.h"
-void QueueExecutor::start(bool allowSameThreadExec) {
-    std::lock_guard lck(initMutex_);
+void QueueExecutor::start(bool allowSameThreadExec, Task fn) {
     if (running_)
         return;
 
     running_ = true;
+    canSubmit_ = true;
     allowSameThreadExec_ = allowSameThreadExec;
     tasks_.clear();
     executor_ = std::thread{ &QueueExecutor::loop, this };
+    async(std::move(fn));
 }
 
-void QueueExecutor::async(Task task) {
+bool QueueExecutor::async(Task task) {
     bool notify;
     {
         std::unique_lock<std::mutex> lck(mutex_);
+        if (!canSubmit_)
+            return false;
+
         notify = !hasPendingTasks();
         tasks_.emplace_back(std::move(task));
     }
 
     if (notify)
         cv_.notify_one();
+
+    return true;
 }
 
 void QueueExecutor::stop(Task task) {
@@ -29,14 +35,22 @@ void QueueExecutor::stop(Task task) {
 
 bool QueueExecutor::stopAsync(Task task)
 {
-    std::lock_guard lck(initMutex_);
     if (!running_)
         return false;
 
-    async([this, aTask(std::move(task))]() {
-        running_ = false;
-        if (aTask) aTask();
+    bool notify;
+    {
+        std::unique_lock<std::mutex> lck(mutex_);
+        canSubmit_ = false;
+        notify = !hasPendingTasks();
+        tasks_.emplace_back([this, aTask(std::move(task))]() {
+            running_ = false;
+            if (aTask) aTask();
         });
+    }
+
+    if (notify)
+        cv_.notify_one();
 
     return true;
 }

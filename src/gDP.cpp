@@ -584,9 +584,9 @@ void gDPLoadTile(u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt)
 		const u32 qwpr = bpr >> 3;
 		for (u32 y = 0; y < height; ++y) {
 			if (address + bpl > RDRAMSize)
-				UnswapCopyWrap(RDRAM, address, (u8*)TMEM, tmemAddr << 3, 0xFFF, RDRAMSize - address);
+				UnswapCopyWrap<0xfff>(RDRAM, address, (u8*)TMEM, tmemAddr << 3, RDRAMSize - address);
 			else
-				UnswapCopyWrap(RDRAM, address, (u8*)TMEM, tmemAddr << 3, 0xFFF, bpr);
+				UnswapCopyWrap<0xfff>(RDRAM, address, (u8*)TMEM, tmemAddr << 3, bpr);
 			if (y & 1)
 				DWordInterleaveWrap((u32*)TMEM, tmemAddr << 1, 0x3FF, qwpr);
 
@@ -704,7 +704,7 @@ void gDPLoadBlock(u32 tile, u32 uls, u32 ult, u32 lrs, u32 dxt)
 		memcpy(TMEM, &RDRAM[address], bytes); // HACK!
 	else {
 		u32 tmemAddr = gDP.loadTile->tmem;
-		UnswapCopyWrap(RDRAM, address, (u8*)TMEM, tmemAddr << 3, 0xFFF, bytes);
+		UnswapCopyWrap<0xFFF>(RDRAM, address, (u8*)TMEM, tmemAddr << 3, bytes);
 		if (dxt != 0) {
 			u32 dxtCounter = 0;
 			u32 qwords = (bytes >> 3);

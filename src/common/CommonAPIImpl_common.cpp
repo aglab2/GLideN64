@@ -29,7 +29,10 @@ void PluginAPI::ProcessDList()
 {
 	LOG(LOG_APIFUNC, "ProcessDList\n");
 #ifdef RSPTHREAD
-	m_executor.sync(RSP_ProcessDList);
+	if (__builtin_expect(!m_executor.sync(RSP_ProcessDList), false))
+	{
+		RSP_ProcessDList_Trivial();
+	}
 #else
 	RSP_ProcessDList();
 #endif
@@ -39,7 +42,10 @@ void PluginAPI::ProcessRDPList()
 {
 	LOG(LOG_APIFUNC, "ProcessRDPList\n");
 #ifdef RSPTHREAD
-	m_executor.sync(RDP_ProcessRDPList);
+	if (__builtin_expect(!m_executor.sync(RDP_ProcessRDPList), false))
+	{
+		RDP_ProcessRDPList_Trivial();
+	}
 #else
 	RDP_ProcessRDPList();
 #endif
@@ -104,8 +110,7 @@ void PluginAPI::RomOpen()
 	LOG(LOG_APIFUNC, "RomOpen\n");
 #ifdef RSPTHREAD
 	std::lock_guard<std::mutex> lck(m_initMutex);
-	m_executor.start(false /*allowSameThreadExec*/);
-	m_executor.async([]()
+	m_executor.start(false /*allowSameThreadExec*/, []()
 	{
 		RSP_Init();
 		GBI.init();
@@ -127,13 +132,36 @@ void PluginAPI::Restart()
 	std::lock_guard<std::mutex> lck(m_initMutex);
 	if (m_bRomOpen)
 	{
-		m_executor.async([]() {
-			// RomClosed
+		bool main = GetCurrentThreadId() == hWndThread;
+		bool running = m_executor.stopAsync([&]()
+		{
 			TFH.dumpcache();
 			dwnd().stop();
 			GBI.destroy();
+			if (main)
+			{
+				PostThreadMessage(hWndThread, WM_APP + 1, 0, 0);
+			}
+		});
 
-			// RomOpen
+		if (!running)
+			return;
+
+		if (main)
+		{
+			MSG msg;
+			while (GetMessage(&msg, 0, 0, 0))
+			{
+				if (msg.message == WM_APP + 1)
+					break;
+
+				DispatchMessage(&msg);
+			}
+		}
+
+		m_executor.stopWait();
+		m_executor.start(false /*allowSameThreadExec*/, []()
+		{
 			RSP_Init();
 			GBI.init();
 			Config_LoadConfig();

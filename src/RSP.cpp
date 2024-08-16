@@ -107,12 +107,16 @@ void RSP_CheckDLCounter()
 	}
 }
 
+void RSP_ProcessDList_Trivial()
+{
+	*REG.MI_INTR |= MI_INTR_DP;
+	CheckInterrupts();
+}
+
 void RSP_ProcessDList()
 {
 	if (ConfigOpen || dwnd().isResizeWindow()) {
-		*REG.MI_INTR |= MI_INTR_DP;
-		CheckInterrupts();
-		return;
+		return RSP_ProcessDList_Trivial();
 	}
 
 	if (RSP.infloop) {

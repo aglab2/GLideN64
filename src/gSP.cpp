@@ -483,7 +483,7 @@ static void processStandardLight(u32 i, SPVertex& vtx)
 }
 
 template <u32 VNUM>
-void gSPLightVertexStandard(u32 v, SPVertex * spVtx)
+void gSPLightVertexStandard(u32 v, SPVertex * __restrict spVtx)
 {
 #ifndef __NEON_OPT
 	if (!isHWLightingAllowed()) {
@@ -515,7 +515,7 @@ void gSPLightVertexStandard(u32 v, SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-void gSPLightVertexCBFD_basic(u32 v, SPVertex * spVtx)
+void gSPLightVertexCBFD_basic(u32 v, SPVertex * __restrict spVtx)
 {
 	for (int j = 0; j < VNUM; ++j) {
 		SPVertex & vtx = spVtx[v + j];
@@ -556,7 +556,7 @@ void gSPLightVertexCBFD_basic(u32 v, SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-void gSPLightVertexCBFD_advanced(u32 v, SPVertex * spVtx)
+void gSPLightVertexCBFD_advanced(u32 v, SPVertex * __restrict spVtx)
 {
 	for (int j = 0; j < VNUM; ++j) {
 		SPVertex & vtx = spVtx[v + j];
@@ -607,7 +607,7 @@ void gSPLightVertexCBFD_advanced(u32 v, SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-void gSPLightVertex(u32 _v, SPVertex * _spVtx)
+void gSPLightVertex(u32 _v, SPVertex * __restrict _spVtx)
 {
 	if (g_ConkerUcode) {
 		if (gSP.cbfd.advancedLighting)
@@ -618,12 +618,12 @@ void gSPLightVertex(u32 _v, SPVertex * _spVtx)
 		gSPLightVertexStandard<VNUM>(_v, _spVtx);
 }
 
-void gSPLightVertex(SPVertex & _vtx)
+void gSPLightVertex(SPVertex & __restrict _vtx)
 {
 	gSPLightVertex<1>(0, &_vtx);
 }
 
-static void processPointLight(u32 l, Vec& _vecPos, SPVertex& vtx)
+static void processPointLight(u32 l, Vec& _vecPos, SPVertex& __restrict vtx)
 {
 	f32 intensity = 0.0f;
 	if (gSP.lights.ca[l] != 0.0f) {
@@ -669,7 +669,7 @@ static void processPointLight(u32 l, Vec& _vecPos, SPVertex& vtx)
 }
 
 template <u32 VNUM>
-void gSPPointLightVertexZeldaMM(u32 v, Vec _vecPos[VNUM], SPVertex * spVtx)
+void gSPPointLightVertexZeldaMM(u32 v, Vec _vecPos[VNUM], SPVertex * __restrict spVtx)
 {
 	for (int j = 0; j < VNUM; ++j) {
 		SPVertex & vtx = spVtx[v + j];
@@ -689,7 +689,7 @@ void gSPPointLightVertexZeldaMM(u32 v, Vec _vecPos[VNUM], SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-void gSPPointLightVertex(u32 _v, Vec _vecPos[VNUM], SPVertex * _spVtx)
+void gSPPointLightVertex(u32 _v, Vec _vecPos[VNUM], SPVertex * __restrict _spVtx)
 {
 	if (g_ConkerUcode) {
 		if (gSP.cbfd.advancedLighting)
@@ -701,7 +701,7 @@ void gSPPointLightVertex(u32 _v, Vec _vecPos[VNUM], SPVertex * _spVtx)
 }
 
 template <u32 VNUM>
-void gSPPointLightVertexAcclaim(u32 v, SPVertex * spVtx)
+void gSPPointLightVertexAcclaim(u32 v, SPVertex * __restrict spVtx)
 {
 	for (int j = 0; j < VNUM; ++j) {
 		SPVertex & vtx = spVtx[v + j];
@@ -731,7 +731,7 @@ void gSPPointLightVertexAcclaim(u32 v, SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-void gSPLightVertexF3DEX3(u32 v, Vec _vecPos[VNUM], SPVertex* spVtx)
+void gSPLightVertexF3DEX3(u32 v, Vec _vecPos[VNUM], SPVertex* __restrict spVtx)
 {
 	for (int j = 0; j < VNUM; ++j) {
 		SPVertex& vtx = spVtx[v + j];
@@ -754,7 +754,7 @@ void gSPLightVertexF3DEX3(u32 v, Vec _vecPos[VNUM], SPVertex* spVtx)
 }
 
 template <u32 VNUM>
-void gSPBillboardVertex(u32 v, SPVertex * spVtx)
+void gSPBillboardVertex(u32 v, SPVertex * __restrict spVtx)
 {
 #ifndef __NEON_OPT
 	SPVertex & vtx0 = spVtx[0];
@@ -781,7 +781,7 @@ void gSPBillboardVertex(u32 v, SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-void gSPClipVertex(u32 v, SPVertex * spVtx)
+void gSPClipVertex(u32 v, SPVertex * __restrict spVtx)
 {
 	for (u32 j = 0; j < VNUM; ++j) {
 		SPVertex & vtx = spVtx[v+j];
@@ -795,7 +795,7 @@ void gSPClipVertex(u32 v, SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-void gSPTransformVertex(u32 v, SPVertex * spVtx, Mtx mtx)
+void gSPTransformVertex(u32 v, SPVertex * __restrict spVtx, Mtx mtx)
 {
 #ifndef __NEON_OPT
 	float x, y, z;
@@ -820,7 +820,7 @@ void gSPTransformVertex(u32 v, SPVertex * spVtx, Mtx mtx)
 }
 
 template <u32 VNUM>
-void gSPProcessVertex(u32 v, SPVertex * spVtx)
+void gSPProcessVertex(u32 v, SPVertex * __restrict spVtx)
 {
 	if (gSP.changed & CHANGED_MATRIX)
 		_gSPCombineMatrices();
@@ -931,7 +931,7 @@ void gSPProcessVertex(u32 v, SPVertex * spVtx)
 }
 
 template <u32 VNUM>
-u32 gSPLoadVertexData(const Vertex *orgVtx, SPVertex * spVtx, u32 v0, u32 vi, u32 n)
+u32 gSPLoadVertexData(const Vertex * __restrict orgVtx, SPVertex * __restrict spVtx, u32 v0, u32 vi, u32 n)
 {
 	const u32 end = n - (n%VNUM) + v0;
 	for (; vi < end; vi += VNUM) {
@@ -1001,7 +1001,7 @@ void gSPVertex(u32 a, u32 n, u32 v0)
 }
 
 template <u32 VNUM>
-u32 gSPLoadCIVertexData(const PDVertex *orgVtx, SPVertex * spVtx, u32 v0, u32 vi, u32 n)
+u32 gSPLoadCIVertexData(const PDVertex * __restrict orgVtx, SPVertex * __restrict spVtx, u32 v0, u32 vi, u32 n)
 {
 	const u32 end = n - (n%VNUM) + v0;
 	for (; vi < end; vi += VNUM) {
@@ -1070,7 +1070,7 @@ void gSPCIVertex( u32 a, u32 n, u32 v0 )
 
 
 template <u32 VNUM>
-u32 gSPLoadDMAVertexData(u32 address, SPVertex * spVtx, u32 v0, u32 vi, u32 n)
+u32 gSPLoadDMAVertexData(u32 address, SPVertex * __restrict spVtx, u32 v0, u32 vi, u32 n)
 {
 	const u32 end = n - (n%VNUM) + v0;
 	for (; vi < end; vi += VNUM) {
@@ -1114,7 +1114,7 @@ void gSPDMAVertex( u32 a, u32 n, u32 v0 )
 }
 
 template <u32 VNUM>
-u32 gSPLoadCBFDVertexData(const Vertex *orgVtx, SPVertex * spVtx, u32 v0, u32 vi, u32 n)
+u32 gSPLoadCBFDVertexData(const Vertex * __restrict orgVtx, SPVertex * __restrict spVtx, u32 v0, u32 vi, u32 n)
 {
 	const u32 end = n - (n%VNUM) + v0;
 	for (; vi < end; vi += VNUM) {
@@ -1175,7 +1175,7 @@ void gSPCBFDVertex( u32 a, u32 n, u32 v0 )
 }
 
 static
-void calcF3DAMTexCoords(const Vertex * _vertex, SPVertex & _vtx)
+void calcF3DAMTexCoords(const Vertex * __restrict _vertex, SPVertex & _vtx)
 {
 	const u32 s0 = (u32)_vertex->s;
 	const u32 t0 = (u32)_vertex->t;
@@ -1191,7 +1191,7 @@ void calcF3DAMTexCoords(const Vertex * _vertex, SPVertex & _vtx)
 }
 
 template <u32 VNUM>
-u32 gSPLoadF3DAMVertexData(const Vertex *orgVtx, SPVertex * spVtx, u32 v0, u32 vi, u32 n)
+u32 gSPLoadF3DAMVertexData(const Vertex * __restrict orgVtx, SPVertex * __restrict spVtx, u32 v0, u32 vi, u32 n)
 {
 	const u32 end = n - (n%VNUM) + v0;
 	for (; vi < end; vi += VNUM) {
@@ -1254,7 +1254,7 @@ void gSPF3DAMVertex(u32 a, u32 n, u32 v0)
 }
 
 template <u32 VNUM>
-u32 gSPLoadSWVertexData(const SWVertex *orgVtx, SPVertex * spVtx, u32 vi, u32 n)
+u32 gSPLoadSWVertexData(const SWVertex * __restrict orgVtx, SPVertex * __restrict spVtx, u32 vi, u32 n)
 {
 	const u32 end = n - (n%VNUM);
 	for (; vi < end; vi += VNUM) {
@@ -1274,7 +1274,7 @@ u32 gSPLoadSWVertexData(const SWVertex *orgVtx, SPVertex * spVtx, u32 vi, u32 n)
 	return vi;
 }
 
-void gSPSWVertex(const SWVertex * vertex, u32 n, const bool * const verticesToProcess)
+void gSPSWVertex(const SWVertex * __restrict vertex, u32 n, const bool * __restrict const verticesToProcess)
 {
 	DebugMsg(DEBUG_NORMAL, "gSPSWVertex n = %i\n", n);
 
@@ -1291,7 +1291,7 @@ void gSPSWVertex(const SWVertex * vertex, u32 n, const bool * const verticesToPr
 	}
 }
 
-void gSPSWVertex(const SWVertex * vertex, u32 v0, u32 n)
+void gSPSWVertex(const SWVertex * __restrict vertex, u32 v0, u32 n)
 {
 	DebugMsg(DEBUG_NORMAL, "gSPSWVertex v0 = %i, n = %i\n", v0, n);
 

@@ -17,9 +17,9 @@ public:
     using Task = std::function<void()>;
     QueueExecutor() = default;
 
-    void start(bool allowSameThreadExec);
+    void start(bool allowSameThreadExec, Task fn = {});
     template<typename Fn>
-    void sync(Fn fn)
+    bool sync(Fn fn)
     {
         bool notify;
         bool executeNow = false;
@@ -27,6 +27,9 @@ public:
 
         {
             std::lock_guard lck(mutex_);
+            if (!canSubmit_)
+                return false;
+
             if (allowSameThreadExec_ && !hasPendingTasks())
             {
                 executeNow = true;
@@ -53,6 +56,9 @@ public:
             {
                 // we are done executing stolen task, unbusy and maybe wakeup the thread
                 std::lock_guard lck(mutex_);
+                if (!canSubmit_)
+                    return false;
+
                 busy_ = false;
                 notify = !tasks_.empty();
             }
@@ -73,9 +79,11 @@ public:
             finished.wait(false);
             int a = 0;
         }
+
+        return true;
     }
 
-    void async(Task);
+    bool async(Task);
     void stop(Task = {});
 
     bool stopAsync(Task = {});
@@ -104,12 +112,10 @@ private:
     std::deque<Task> tasks_;
     bool running_ = false;
     bool busy_ = false;
+    bool canSubmit_ = false;
 
     // The Executor as it goes
     std::thread executor_;
-
-    // Sync for 'start' and 'stop' to avoid weird edge cases
-    std::mutex initMutex_;
 
     void loop();
 };
