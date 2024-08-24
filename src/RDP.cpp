@@ -575,6 +575,7 @@ void RDP_ProcessRDPList_Trivial()
 
 void RDP_ProcessRDPList()
 {
+	tmemCacheDrop();
 	if (ConfigOpen || dwnd().isResizeWindow()) {
 		return RDP_ProcessRDPList_Trivial();
 	}
