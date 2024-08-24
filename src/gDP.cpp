@@ -652,6 +652,68 @@ void gDPLoadBlock32(u32 uls,u32 lrs, u32 dxt)
 	}
 }
 
+#define TMEM_CACHE_BITS 10
+#define TMEM_CACHE_SIZE (1 << TMEM_CACHE_BITS)
+
+struct TmemCacheEntryDesc
+{
+	uint32_t address;
+	uint32_t bytes;
+	uint32_t dxt;
+};
+
+struct Tmem
+{
+	uint64_t data[512];
+};
+
+static TmemCacheEntryDesc sTmemCacheEntryDescriptors[TMEM_CACHE_SIZE] = {};
+static Tmem sTmemCache[TMEM_CACHE_SIZE];
+
+static inline uint32_t hashInt32(uint32_t num, int shift)
+{
+	return ((num * 2654435761U) >> (32 - TMEM_CACHE_BITS));
+}
+
+static bool tmemCacheEntryMatches(const TmemCacheEntryDesc& entry, uint32_t address, uint32_t bytes, uint32_t dxt)
+{
+	return entry.address == address && entry.bytes == bytes && entry.dxt == dxt;
+}
+
+static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint32_t bytes, uint32_t dxt)
+{
+	uint32_t hash = hashInt32(address, TMEM_CACHE_SIZE);
+	TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
+	if (tmemCacheEntryMatches(entry, address, bytes, dxt))
+		return;
+
+	Tmem& tmem = sTmemCache[hash];
+	entry.address = address;
+	entry.bytes = bytes;
+	entry.dxt = dxt;
+	__builtin_memcpy(tmem.data, &TMEM[tmemIdx], bytes);
+}
+
+static Tmem* tmemFindCacheEntry(uint32_t address, uint32_t bytes, uint32_t dxt)
+{
+	uint32_t hash = hashInt32(address, TMEM_CACHE_SIZE);
+	const TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
+	if (tmemCacheEntryMatches(entry, address, bytes, dxt))
+		return &sTmemCache[hash];
+	else
+		return nullptr;
+}
+
+static bool tmemTryLoadFromCache(uint32_t address, uint32_t tmemIdx, uint32_t bytes, uint32_t dxt)
+{
+	Tmem* cacheEntry = tmemFindCacheEntry(address, bytes, dxt);
+	if (cacheEntry == nullptr)
+		return false;
+
+	__builtin_memcpy(&TMEM[tmemIdx], cacheEntry->data, bytes);
+	return true;
+}
+
 void gDPLoadBlock(u32 tile, u32 uls, u32 ult, u32 lrs, u32 dxt)
 {
 	gDPSetTileSize( tile, uls, ult, lrs, dxt );
@@ -704,32 +766,49 @@ void gDPLoadBlock(u32 tile, u32 uls, u32 ult, u32 lrs, u32 dxt)
 		memcpy(TMEM, &RDRAM[address], bytes); // HACK!
 	else {
 		u32 tmemAddr = gDP.loadTile->tmem;
-		UnswapCopyWrap<0xFFF>(RDRAM, address, (u8*)TMEM, tmemAddr << 3, bytes);
-		if (dxt != 0) {
-			u32 dxtCounter = 0;
-			u32 qwords = (bytes >> 3);
-			u32 line = 0;
-			while (true) {
-				do {
-					++tmemAddr;
-					--qwords;
-					if (qwords == 0)
-						goto end_dxt_test;
-					dxtCounter += dxt;
-				} while ((dxtCounter & 0x800) == 0);
-				do {
-					++line;
-					--qwords;
-					if (qwords == 0)
-						goto end_dxt_test;
-					dxtCounter += dxt;
-				} while ((dxtCounter & 0x800) != 0);
-				DWordInterleaveWrap((u32*)TMEM, tmemAddr << 1, 0x3FF, line);
-				tmemAddr += line;
-				line = 0;
-			}
+		const u32 tmemAddrForCache = tmemAddr;
+		u32 destLim = bytes + (tmemAddr << 3);
+		bool canCache = destLim <= 0xfff + 1;
+		bool load = true;
+		if (canCache)
+		{
+			load = !tmemTryLoadFromCache(address, tmemAddr, bytes, dxt);
+		}
+
+		if (load)
+		{
+			UnswapCopyWrap<0xFFF>(RDRAM, address, (u8*)TMEM, tmemAddr << 3, bytes);
+			if (dxt != 0) {
+				u32 dxtCounter = 0;
+				u32 qwords = (bytes >> 3);
+				u32 line = 0;
+				while (true) {
+					do {
+						++tmemAddr;
+						--qwords;
+						if (qwords == 0)
+							goto end_dxt_test;
+						dxtCounter += dxt;
+					} while ((dxtCounter & 0x800) == 0);
+					do {
+						++line;
+						--qwords;
+						if (qwords == 0)
+							goto end_dxt_test;
+						dxtCounter += dxt;
+					} while ((dxtCounter & 0x800) != 0);
+					DWordInterleaveWrap((u32*)TMEM, tmemAddr << 1, 0x3FF, line);
+					tmemAddr += line;
+					line = 0;
+				}
 			end_dxt_test:
 				DWordInterleaveWrap((u32*)TMEM, tmemAddr << 1, 0x3FF, line);
+			}
+
+			if (canCache)
+			{
+				tmemAddCacheEntry(address, tmemAddrForCache, bytes, dxt);
+			}
 		}
 	}
 
