@@ -115,6 +115,7 @@ void RSP_ProcessDList_Trivial()
 
 void RSP_ProcessDList()
 {
+	tmemCacheDrop();
 	if (ConfigOpen || dwnd().isResizeWindow()) {
 		return RSP_ProcessDList_Trivial();
 	}

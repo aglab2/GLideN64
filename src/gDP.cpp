@@ -652,7 +652,7 @@ void gDPLoadBlock32(u32 uls,u32 lrs, u32 dxt)
 	}
 }
 
-#define TMEM_CACHE_BITS 10
+#define TMEM_CACHE_BITS 11
 #define TMEM_CACHE_SIZE (1 << TMEM_CACHE_BITS)
 
 struct TmemCacheEntryDesc
@@ -670,9 +670,19 @@ struct Tmem
 static TmemCacheEntryDesc sTmemCacheEntryDescriptors[TMEM_CACHE_SIZE] = {};
 static Tmem sTmemCache[TMEM_CACHE_SIZE];
 
-static inline uint32_t hashInt32(uint32_t num, int shift)
+void tmemCacheDrop()
 {
-	return ((num * 2654435761U) >> (32 - TMEM_CACHE_BITS));
+	for (uint32_t i = 0; i < TMEM_CACHE_SIZE; ++i)
+	{
+		sTmemCacheEntryDescriptors[i] = {};
+	}
+}
+
+static inline uint32_t hashInt32(uint32_t x)
+{
+	// given values normally passed, this will give a very good spread
+	// return (x >> 10) % TMEM_CACHE_SIZE;
+	return std::hash<uint32_t>()(x) & (TMEM_CACHE_SIZE - 1);
 }
 
 static bool tmemCacheEntryMatches(const TmemCacheEntryDesc& entry, uint32_t address, uint32_t bytes, uint32_t dxt)
@@ -682,7 +692,7 @@ static bool tmemCacheEntryMatches(const TmemCacheEntryDesc& entry, uint32_t addr
 
 static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint32_t bytes, uint32_t dxt)
 {
-	uint32_t hash = hashInt32(address, TMEM_CACHE_SIZE);
+	uint32_t hash = hashInt32(address);
 	TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
 	if (tmemCacheEntryMatches(entry, address, bytes, dxt))
 		return;
@@ -696,7 +706,7 @@ static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint32_t bytes
 
 static Tmem* tmemFindCacheEntry(uint32_t address, uint32_t bytes, uint32_t dxt)
 {
-	uint32_t hash = hashInt32(address, TMEM_CACHE_SIZE);
+	uint32_t hash = hashInt32(address);
 	const TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
 	if (tmemCacheEntryMatches(entry, address, bytes, dxt))
 		return &sTmemCache[hash];

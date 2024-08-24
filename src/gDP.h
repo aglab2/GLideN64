@@ -303,4 +303,6 @@ void gDPTriShadeTxtrZ( u32 w0, u32 w1 );
 bool isCurrentColorImageDepthImage();
 bool isDepthCompareEnabled();
 
+void tmemCacheDrop();
+
 #endif
