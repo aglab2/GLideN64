@@ -476,9 +476,7 @@ static void processStandardLight(u32 i, SPVertex& vtx)
 {
 	const f32 intensity = DotProduct(vtx.normal, gSP.lights.i_xyz[i].vec());
 	if (intensity > 0.0f) {
-		vtx.r += gSP.lights.rgb[i][R] * intensity;
-		vtx.g += gSP.lights.rgb[i][G] * intensity;
-		vtx.b += gSP.lights.rgb[i][B] * intensity;
+		vtx.color += gSP.lights.rgb[i].vec() * intensity;
 	}
 }
 
@@ -781,7 +779,7 @@ void gSPBillboardVertex(u32 v, SPVertex * __restrict spVtx)
 }
 
 template <u32 VNUM>
-void gSPClipVertex(u32 v, SPVertex * __restrict spVtx)
+void gSPClipVertex(u32 v, SPVertex * spVtx)
 {
 	for (u32 j = 0; j < VNUM; ++j) {
 		SPVertex & vtx = spVtx[v+j];
@@ -804,10 +802,7 @@ void gSPTransformVertex(u32 v, SPVertex * __restrict spVtx, Mtx mtx)
 		x = vtx.x;
 		y = vtx.y;
 		z = vtx.z;
-		vtx.x = x * mtx[0][0] + y * mtx[1][0] + z * mtx[2][0] + mtx[3][0];
-		vtx.y = x * mtx[0][1] + y * mtx[1][1] + z * mtx[2][1] + mtx[3][1];
-		vtx.z = x * mtx[0][2] + y * mtx[1][2] + z * mtx[2][2] + mtx[3][2];
-		vtx.w = x * mtx[0][3] + y * mtx[1][3] + z * mtx[2][3] + mtx[3][3];
+		vtx.pos = x * mtx[0] + y * mtx[1] + z * mtx[2] + mtx[3];
 	}
 #else
 	void gSPTransformVector_NEON(float vtx[4], float mtx[4][4]);

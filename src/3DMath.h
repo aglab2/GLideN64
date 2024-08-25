@@ -70,19 +70,19 @@ inline void InverseTransformVectorNormalizeN(Vec src[], Vec dst[], Mtx mtx, u32 
 inline void Normalize(Vec& v)
 {
 	float len;
-
-	len = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+	Vec mult = v * v;
+	len = mult[0] + mult[1] + mult[2];
 	if (len != 0.0) {
 		len = sqrtf(len);
-		v[0] /= len;
-		v[1] /= len;
-		v[2] /= len;
+		Vec vlen{ len, len, len, 1.f };
+		v /= vlen;
 	}
 }
 
 inline float DotProduct(Vec v0, Vec v1)
 {
-	return v0[0]*v1[0] + v0[1]*v1[1] + v0[2]*v1[2];
+	Vec mult = v0 * v1;
+	return mult[0] + mult[1] + mult[2];
 }
 
 inline float GetFloatMatrixElement(s16 _int, u16 _fract)
