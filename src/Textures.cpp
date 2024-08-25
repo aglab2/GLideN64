@@ -553,7 +553,7 @@ CachedTexture * TextureCache::_addTexture(u32 _crc32)
 	m_textures.emplace_front(gfxContext.createTexture(textureTarget::TEXTURE_2D));
 	Textures::iterator new_iter = m_textures.begin();
 	new_iter->crc = _crc32;
-	m_lruTextureLocations.insert(std::pair<u32, Textures::iterator>(_crc32, new_iter));
+	m_lruTextureLocations.insert(_crc32, std::move(new_iter));
 	return &(*new_iter);
 }
 
@@ -1436,9 +1436,8 @@ void TextureCache::_updateBackground()
 	u32 params[4] = {gSP.bgImage.width, gSP.bgImage.height, gSP.bgImage.format, gSP.bgImage.size};
 	crc = CRC_Calculate(crc, params, sizeof(u32)*4);
 
-	Texture_Locations::iterator locations_iter = m_lruTextureLocations.find(crc);
-	if (locations_iter != m_lruTextureLocations.end()) {
-		Textures::iterator iter = locations_iter->second;
+	if (auto location = m_lruTextureLocations.find(crc)) {
+		Textures::iterator iter = *location;
 		CachedTexture & currentTex = *iter;
 		m_textures.splice(m_textures.begin(), m_textures, iter);
 
@@ -1584,9 +1583,8 @@ void TextureCache::update(u32 _t)
 		return;
 	}
 
-	Texture_Locations::iterator locations_iter = m_lruTextureLocations.find(crc);
-	if (locations_iter != m_lruTextureLocations.end()) {
-		Textures::iterator iter = locations_iter->second;
+	if (auto location = m_lruTextureLocations.find(crc)) {
+		Textures::iterator iter = *location;
 		CachedTexture & currentTex = *iter;
 
 		if (currentTex.width == sizes.width && currentTex.height == sizes.height) {
@@ -1601,7 +1599,7 @@ void TextureCache::update(u32 _t)
 		}
 
 		gfxContext.deleteTexture(currentTex.name);
-		m_lruTextureLocations.erase(locations_iter);
+		m_lruTextureLocations.erase(crc);
 		m_textures.erase(iter);
 	}
 

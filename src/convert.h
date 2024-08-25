@@ -82,13 +82,10 @@ static inline void UnswapCopyWrap(const u8* __restrict src, u32 srcIdx, u8* __re
 
 		// copy dwords
 		int numDWords = numBytes >> 2;
-#pragma clang loop vectorize(enable) interleave(enable)
 		while (numDWords--) {
-			dest[(destIdx + 3)] = src[srcIdx++];
-			dest[(destIdx + 2)] = src[srcIdx++];
-			dest[(destIdx + 1)] = src[srcIdx++]; 
-			dest[(destIdx + 0)] = src[srcIdx++];
+			*(uint32_t*)&dest[destIdx] = __builtin_bswap32(*(uint32_t*)&src[srcIdx]);
 			destIdx += 4;
+			srcIdx += 4;
 		}
 
 		// copy trailing bytes

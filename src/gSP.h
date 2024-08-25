@@ -38,6 +38,7 @@ struct ColorVec
 {
 public:
 	f32& operator[] (Component c) { return val_[(size_t) c]; }
+	f32 operator[] (Component c) const { return val_[(size_t)c]; }
 	Vec& vec() { return vec_; }
 
 private:
@@ -52,6 +53,7 @@ struct PosVec
 {
 public:
 	f32& operator[] (Axis c) { return val_[(size_t)c]; }
+	f32 operator[] (Axis c) const { return val_[(size_t)c]; }
 	Vec& vec() { return vec_; }
 
 private:

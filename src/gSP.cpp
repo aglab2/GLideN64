@@ -487,17 +487,15 @@ void gSPLightVertexStandard(u32 v, SPVertex * __restrict spVtx)
 	if (!isHWLightingAllowed()) {
 		for(int j = 0; j < VNUM; ++j) {
 			SPVertex & vtx = spVtx[v+j];
-			vtx.r = gSP.lights.rgb[gSP.numLights][R];
-			vtx.g = gSP.lights.rgb[gSP.numLights][G];
-			vtx.b = gSP.lights.rgb[gSP.numLights][B];
+			f32 a = vtx.a;
+			vtx.color = gSP.lights.rgb[gSP.numLights].vec();
+			vtx.a = a;
 			vtx.HWLight = 0;
 
 			for (u32 i = 0; i < gSP.numLights; ++i) {
 				processStandardLight(i, vtx);
 			}
-			vtx.r = min(1.0f, vtx.r);
-			vtx.g = min(1.0f, vtx.g);
-			vtx.b = min(1.0f, vtx.b);
+			vtx.color = vtx.color < 1.f ? vtx.color : 1.f;
 		}
 	} else {
 		for(int j = 0; j < VNUM; ++j) {

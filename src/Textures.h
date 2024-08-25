@@ -47,6 +47,126 @@ struct CachedTexture
 };
 
 
+#define FLAT_HASH_LIST_SIZE 8192
+template<typename Value>
+struct FlatHashList
+{
+public:
+	FlatHashList()
+	{
+		for (u32 i = 0; i < FLAT_HASH_LIST_SIZE; i++)
+		{
+			m_entries[i].key = i + 1;
+		}
+	}
+
+	void clear()
+	{
+		for (u32 i = 0; i < FLAT_HASH_LIST_SIZE; i++)
+		{
+			m_entries[i].key = i + 1;
+			auto next = m_entries[i].next;
+			while (next)
+			{
+				auto tmp = next;
+				next = next->next;
+				delete tmp;
+			}
+		}
+	}
+
+	const Value* find(u32 key) const
+	{
+		u32 index = key % FLAT_HASH_LIST_SIZE;
+		const Entry* entry = &m_entries[index];
+
+		while (entry)
+		{
+			if (entry->key == key)
+			{
+				return &entry->value;
+			}
+
+			entry = entry->next;
+		}
+
+		return nullptr;
+	}
+
+	void insert(u32 key, Value&& value)
+	{
+		u32 index = key % FLAT_HASH_LIST_SIZE;
+		Entry* prevEntry = nullptr;
+		Entry* entry = &m_entries[index];
+
+		while (entry)
+		{
+			if (entry->key == key)
+			{
+				entry->value = std::forward<Value>(value);
+				return;
+			}
+
+			prevEntry = entry;
+			entry = entry->next;
+		}
+
+		if (m_entries[index].key == index + 1)
+		{
+			auto newEntry = new Entry();
+			newEntry->key = key;
+			newEntry->value = std::forward<Value>(value);
+			prevEntry->next = newEntry;
+		}
+		else
+		{
+			m_entries[index].key = key;
+			m_entries[index].value = std::forward<Value>(value);
+		}
+	}
+
+	void erase(u32 key)
+	{
+		u32 index = key % FLAT_HASH_LIST_SIZE;
+		Entry* prevEntry = nullptr;
+		Entry* entry = &m_entries[index];
+
+		while (entry)
+		{
+			if (entry->key == key)
+			{
+				if (prevEntry)
+				{
+					prevEntry->next = entry->next;
+					delete entry;
+				}
+				else
+				{
+					m_entries[index].key = index + 1;
+					if (m_entries[index].next)
+						m_entries[index].next = m_entries[index].next->next;
+				}
+
+				return;
+			}
+
+			prevEntry = entry;
+			entry = entry->next;
+		}
+	}
+
+private:
+	struct Entry
+	{
+		u32 key;
+		Value value;
+		Entry* next = nullptr;
+	};
+
+	Entry m_entries[FLAT_HASH_LIST_SIZE];
+};
+
+
 struct TextureCache
 {
 	CachedTexture * current[2];
@@ -90,7 +210,7 @@ private:
 	void _getTextureDestData(CachedTexture& tmptex, u32* pDest, graphics::Parameter glInternalFormat, GetTexelFunc GetTexel, u16* pLine);
 
 	typedef std::list<CachedTexture> Textures;
-	typedef std::unordered_map<u32, Textures::iterator> Texture_Locations;
+	typedef FlatHashList<Textures::iterator> Texture_Locations;
 	typedef std::unordered_map<u32, CachedTexture> FBTextures;
 	Textures m_textures;
 	Texture_Locations m_lruTextureLocations;
