@@ -66,6 +66,7 @@ public:
 		{
 			m_entries[i].key = i + 1;
 			auto next = m_entries[i].next;
+			m_entries[i].next = nullptr;
 			while (next)
 			{
 				auto tmp = next;
