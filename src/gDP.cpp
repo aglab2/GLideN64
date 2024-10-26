@@ -485,6 +485,8 @@ bool CheckForFrameBufferTexture(u32 _address, u32 _width, u32 _bytes)
 //
 void gDPLoadTile32b(u32 uls, u32 ult, u32 lrs, u32 lrt)
 {
+	// TODO: This can be cached as well
+	tmemCacheHashInvalidate();
 	const u32 width = lrs - uls + 1;
 	const u32 height = lrt - ult + 1;
 	const u32 line = gDP.loadTile->line << 2;
@@ -576,6 +578,7 @@ void gDPLoadTile(u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt)
 	if (CheckForFrameBufferTexture(address, info.width, bpl2*height2))
 		return;
 
+	tmemCacheHashInvalidate();
 	if (gDP.loadTile->size == G_IM_SIZ_32b)
 		gDPLoadTile32b(gDP.loadTile->uls, gDP.loadTile->ult, gDP.loadTile->lrs, gDP.loadTile->lrt);
 	else {
@@ -655,11 +658,19 @@ void gDPLoadBlock32(u32 uls,u32 lrs, u32 dxt)
 #define TMEM_CACHE_BITS 11
 #define TMEM_CACHE_SIZE (1 << TMEM_CACHE_BITS)
 
+static uint32_t sTmemFrame = 0;
+
 struct TmemCacheEntryDesc
 {
 	uint32_t address;
 	uint32_t bytes;
 	uint32_t dxt;
+	uint32_t crc;
+
+	bool matches(uint32_t _address, uint32_t _bytes, uint32_t _dxt) const
+	{
+		return address == _address && bytes == _bytes && dxt == _dxt;
+	}
 };
 
 struct Tmem
@@ -672,10 +683,8 @@ static Tmem sTmemCache[TMEM_CACHE_SIZE];
 
 void tmemCacheDrop()
 {
-	for (uint32_t i = 0; i < TMEM_CACHE_SIZE; ++i)
-	{
-		sTmemCacheEntryDescriptors[i] = {};
-	}
+	memset(sTmemCacheEntryDescriptors, 0, sizeof(sTmemCacheEntryDescriptors));
+	tmemCacheHashInvalidate();
 }
 
 static inline uint32_t hashInt32(uint32_t x)
@@ -685,42 +694,39 @@ static inline uint32_t hashInt32(uint32_t x)
 	return std::hash<uint32_t>()(x) & (TMEM_CACHE_SIZE - 1);
 }
 
-static bool tmemCacheEntryMatches(const TmemCacheEntryDesc& entry, uint32_t address, uint32_t bytes, uint32_t dxt)
-{
-	return entry.address == address && entry.bytes == bytes && entry.dxt == dxt;
-}
-
-static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint32_t bytes, uint32_t dxt)
+static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint16_t bytes, uint16_t dxt)
 {
 	uint32_t hash = hashInt32(address);
 	TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
-	if (tmemCacheEntryMatches(entry, address, bytes, dxt))
-		return;
-
 	Tmem& tmem = sTmemCache[hash];
 	entry.address = address;
 	entry.bytes = bytes;
 	entry.dxt = dxt;
+	entry.crc = CRC_Calculate(0xffffffff, &TMEM[tmemIdx], bytes);
 	__builtin_memcpy(tmem.data, &TMEM[tmemIdx], bytes);
+	tmemCacheHashSet(tmemIdx, bytes, entry.crc);
 }
 
-static Tmem* tmemFindCacheEntry(uint32_t address, uint32_t bytes, uint32_t dxt)
+static Tmem* tmemFindCacheEntry(uint32_t address, uint16_t bytes, uint16_t dxt)
 {
 	uint32_t hash = hashInt32(address);
 	const TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
-	if (tmemCacheEntryMatches(entry, address, bytes, dxt))
+	if (entry.matches(address, bytes, dxt))
 		return &sTmemCache[hash];
 	else
 		return nullptr;
 }
 
-static bool tmemTryLoadFromCache(uint32_t address, uint32_t tmemIdx, uint32_t bytes, uint32_t dxt)
+static bool tmemTryLoadFromCache(uint32_t address, uint32_t tmemIdx, uint16_t bytes, uint16_t dxt)
 {
 	Tmem* cacheEntry = tmemFindCacheEntry(address, bytes, dxt);
 	if (cacheEntry == nullptr)
 		return false;
 
+	uint32_t hash = hashInt32(address);
+	const TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
 	__builtin_memcpy(&TMEM[tmemIdx], cacheEntry->data, bytes);
+	tmemCacheHashSet(tmemIdx, bytes, entry.crc);
 	return true;
 }
 
@@ -769,6 +775,8 @@ void gDPLoadBlock(u32 tile, u32 uls, u32 ult, u32 lrs, u32 dxt)
 
 	gDP.loadTile->frameBufferAddress = 0;
 	CheckForFrameBufferTexture(address, info.width, bytes); // Load data to TMEM even if FB texture is found. See comment to texturedRectDepthBufferCopy
+
+	tmemCacheHashInvalidate();
 
 	if (gDP.loadTile->size == G_IM_SIZ_32b)
 		gDPLoadBlock32(gDP.loadTile->uls, gDP.loadTile->lrs, dxt);
@@ -837,6 +845,8 @@ void gDPLoadTLUT( u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt )
 	u16 pal = (u16)((gDP.tiles[tile].tmem - 256) >> 4);
 	u16 * dest = reinterpret_cast<u16*>(TMEM);
 	u32 destIdx = gDP.tiles[tile].tmem << 2;
+
+	tmemCacheHashInvalidate();
 
 	int i = 0;
 	while (i < count) {

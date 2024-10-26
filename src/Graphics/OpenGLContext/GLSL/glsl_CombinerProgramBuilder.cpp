@@ -37,8 +37,9 @@ private:
 };
 
 
-u32 g_cycleType = G_CYC_1CYCLE;
-TextureConvert g_textureConvert;
+static u32 g_cycleType = G_CYC_1CYCLE;
+static TextureConvert g_textureConvert;
+static CombinerKey::FastPath g_fastPath = CombinerKey::FastPath::CKFP_DISABLED;
 
 /*---------------_compileCombiner-------------*/
 
@@ -501,10 +502,34 @@ public:
 class ShaderBlender1 : public ShaderPart
 {
 public:
-	ShaderBlender1()
+	ShaderBlender1() = default;
+
+	void write(std::stringstream& shader) const override
 	{
-#if 1
-			m_part =
+		if (g_fastPath)
+		{
+			if (g_cycleType == G_CYC_1CYCLE)
+			{
+				// every other modes are just passing
+				if (CombinerKey::CKFP_TRANSLUCENT == g_fastPath)
+					shader << "clampedColor.rgb *= clampedColor.a;\n";
+			}
+			else if (g_cycleType == G_CYC_2CYCLE)
+			{
+				// Mix fog color in 1st blend cycle, actual formula stuff will be done in the next cycle
+				if (g_fastPath != CombinerKey::CKFP_PASS_TWICE)
+					shader << "lowp vec4 blend1 = mix(clampedColor, uFogColor, vShadeColor.a); \n"
+							  "clampedColor.rgb = blend1.rgb;";
+			}
+			else
+			{
+				// Currently fast path only works for 1CYCLE and 2CYCLE
+				abort();
+			}
+		}
+		else
+		{
+			shader <<
 				"  muxPM[0] = clampedColor;													\n"
 				"  lowp vec4 vprobe = vec4(0.0, 1.0, 2.0, 3.0);								\n"
 				"  if (uForceBlendCycle1 != 0) {											\n"
@@ -517,7 +542,7 @@ public:
 				"    lowp vec4 blend1 = (muxpm0 * muxa) + (muxpm2 * muxb);					\n"
 				"    clampedColor.rgb = clamp(blend1.rgb, 0.0, 1.0);						\n"
 				"  } else {																	\n"
-// Workaround for Intel drivers for Mac, issue #1601
+				// Workaround for Intel drivers for Mac, issue #1601
 #if defined(OS_MAC_OS_X)
 				"      clampedColor.rgb = muxPM[uBlendMux1[0]].rgb;							\n"
 #else
@@ -526,28 +551,39 @@ public:
 #endif
 				"  }																		\n"
 				;
-#else
-		// Keep old code for reference
-		m_part =
-			"  muxPM[0] = clampedColor;								\n"
-			"  if (uForceBlendCycle1 != 0) {						\n"
-			"    muxA[0] = clampedColor.a;							\n"
-			"    muxB[0] = 1.0 - muxA[uBlendMux1[1]];				\n"
-			"    lowp vec4 blend1 = (muxPM[uBlendMux1[0]] * muxA[uBlendMux1[1]]) + (muxPM[uBlendMux1[2]] * muxB[uBlendMux1[3]]);	\n"
-			"    clampedColor.rgb = clamp(blend1.rgb, 0.0, 1.0);	\n"
-			"  } else clampedColor.rgb = muxPM[uBlendMux1[0]].rgb;	\n"
-			;
-#endif
+		}
 	}
 };
 
 class ShaderBlender2 : public ShaderPart
 {
 public:
-	ShaderBlender2()
+	ShaderBlender2() = default;
+
+	void write(std::stringstream& shader) const override
 	{
-#if 1
-			m_part =
+		if (g_fastPath)
+		{
+			if (g_cycleType == G_CYC_1CYCLE)
+			{
+				// that should never happen
+				abort();
+			}
+			else if (g_cycleType == G_CYC_2CYCLE)
+			{
+				// every other modes are just passing
+				if (CombinerKey::CKFP_TRANSLUCENT == g_fastPath)
+					shader << "clampedColor.rgb *= clampedColor.a;\n";
+			}
+			else
+			{
+				// Currently fast path only works for 1CYCLE and 2CYCLE
+				abort();
+			}
+		}
+		else
+		{
+			shader <<
 				"  muxPM[0] = clampedColor;													\n"
 				"  muxPM[1] = vec4(0.0);													\n"
 				"  if (uForceBlendCycle2 != 0) {											\n"
@@ -560,7 +596,7 @@ public:
 				"    lowp vec4 blend2 = muxpm0 * muxa + muxpm2 * muxb;						\n"
 				"    clampedColor.rgb = clamp(blend2.rgb, 0.0, 1.0);						\n"
 				"  } else {																	\n"
-// Workaround for Intel drivers for Mac, issue #1601
+				// Workaround for Intel drivers for Mac, issue #1601
 #if defined(OS_MAC_OS_X)
 				"      clampedColor.rgb = muxPM[uBlendMux2[0]].rgb;							\n"
 #else
@@ -569,19 +605,7 @@ public:
 #endif
 				"  }																		\n"
 				;
-#else
-		// Keep old code for reference
-		m_part =
-			"  muxPM[0] = clampedColor;								\n"
-			"  muxPM[1] = vec4(0.0);								\n"
-			"  if (uForceBlendCycle2 != 0) {						\n"
-			"    muxA[0] = clampedColor.a;							\n"
-			"    muxB[0] = 1.0 - muxA[uBlendMux2[1]];				\n"
-			"    lowp vec4 blend2 = muxPM[uBlendMux2[0]] * muxA[uBlendMux2[1]] + muxPM[uBlendMux2[2]] * muxB[uBlendMux2[3]];	\n"
-			"    clampedColor.rgb = clamp(blend2.rgb, 0.0, 1.0);	\n"
-			"  } else clampedColor.rgb = muxPM[uBlendMux2[0]].rgb;	\n"
-			;
-#endif
+		}
 	}
 };
 
@@ -951,8 +975,10 @@ public:
 			config.video.multisampling > 0 &&
 			(g_cycleType == G_CYC_COPY || g_textureConvert.useTextureFiltering()))
 		{
-			shader <<
-				"lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha);\n";
+			if (g_fastPath)
+				shader << "lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord);\n";
+			else
+				shader << "lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha);\n";
 		}
 	}
 
@@ -1130,26 +1156,36 @@ public:
 						;
 				break;
 				}
-				shaderPart +=
-					"#define READ_TEX(name, tex, texCoord, fbMonochrome, fbFixedAlpha)	\\\n"
+
+				if (g_fastPath)
+					shaderPart +=
+					"#define READ_TEX(name, tex, texCoord)								\\\n"
 					"  {																\\\n"
-					"  if (fbMonochrome == 3) {											\\\n"
-					"    mediump ivec2 coord = ivec2(gl_FragCoord.xy);					\\\n"
-					"    name = texelFetch(tex, coord, 0);								\\\n"
-					"  } else {															\\\n"
 					"    if (uTextureFilterMode == 0) name = texture(tex, texCoord);	\\\n"
 					"    else TEX_FILTER(name, tex, texCoord);			 				\\\n"
-					"  }																\\\n"
-					"  if (fbMonochrome == 1) name = vec4(name.r);						\\\n"
-					"  else if (fbMonochrome == 2) 										\\\n"
-					"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
-					"  else if (fbMonochrome == 3) { 									\\\n"
-					"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
-					"    name.a = 0.0;													\\\n"
-					"  }																\\\n"
-					"  if (fbFixedAlpha == 1) name.a = 0.825;							\\\n"
 					"  }																\n"
 					;
+				else
+					shaderPart +=
+						"#define READ_TEX(name, tex, texCoord, fbMonochrome, fbFixedAlpha)	\\\n"
+						"  {																\\\n"
+						"  if (fbMonochrome == 3) {											\\\n"
+						"    mediump ivec2 coord = ivec2(gl_FragCoord.xy);					\\\n"
+						"    name = texelFetch(tex, coord, 0);								\\\n"
+						"  } else {															\\\n"
+						"    if (uTextureFilterMode == 0) name = texture(tex, texCoord);	\\\n"
+						"    else TEX_FILTER(name, tex, texCoord);			 				\\\n"
+						"  }																\\\n"
+						"  if (fbMonochrome == 1) name = vec4(name.r);						\\\n"
+						"  else if (fbMonochrome == 2) 										\\\n"
+						"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
+						"  else if (fbMonochrome == 3) { 									\\\n"
+						"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
+						"    name.a = 0.0;													\\\n"
+						"  }																\\\n"
+						"  if (fbFixedAlpha == 1) name.a = 0.825;							\\\n"
+						"  }																\n"
+						;
 			}
 
 			if (g_textureConvert.useYUVCoversion()) {
@@ -1183,10 +1219,16 @@ public:
 
 		} else {
 			if (g_textureConvert.useTextureFiltering()) {
-				shaderPart +=
-					"uniform lowp int uTextureFilterMode;								\n"
-					"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha);	\n"
-					;
+				if (g_fastPath)
+					shaderPart +=
+						"uniform lowp int uTextureFilterMode;							\n"
+						"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord);	\n"
+						;
+				else
+					shaderPart +=
+						"uniform lowp int uTextureFilterMode;								\n"
+						"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha);	\n"
+						;
 			}
 			if (g_textureConvert.useYUVCoversion()) {
 				shaderPart +=
@@ -1208,34 +1250,62 @@ private:
 class ShaderFragmentHeaderReadTexCopyMode : public ShaderPart
 {
 public:
-	ShaderFragmentHeaderReadTexCopyMode (const opengl::GLInfo & _glinfo)
+	ShaderFragmentHeaderReadTexCopyMode(const opengl::GLInfo& _glinfo)
+		: gles2_(_glinfo.isGLES2)
 	{
-		if (!_glinfo.isGLES2) {
-			m_part =
-				"#define READ_TEX(name, tex, texCoord, fbMonochrome, fbFixedAlpha)	\\\n"
-				"  {																\\\n"
-				"  if (fbMonochrome == 3) {											\\\n"
-				"    mediump ivec2 coord = ivec2(gl_FragCoord.xy);					\\\n"
-				"    name = texelFetch(tex, coord, 0);								\\\n"
-				"  } else {															\\\n"
-				"    name = texture(tex, texCoord);									\\\n"
-				"  }																\\\n"
-				"  if (fbMonochrome == 1) name = vec4(name.r);						\\\n"
-				"  else if (fbMonochrome == 2) 										\\\n"
-				"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
-				"  else if (fbMonochrome == 3) { 									\\\n"
-				"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
-				"    name.a = 0.0;													\\\n"
-				"  }																\\\n"
-				"  if (fbFixedAlpha == 1) name.a = 0.825;							\\\n"
-				"  }																\n"
-				;
-		} else {
-			m_part =
-				"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha);	\n"
-			;
+	}
+	
+	void write(std::stringstream& shader) const override
+	{
+		if (g_fastPath)
+		{
+			if (!gles2_) {
+				shader <<
+					"#define READ_TEX(name, tex, texCoord)	\\\n"
+					"  {									\\\n"
+					"    name = texture(tex, texCoord);		\\\n"
+					"  }									\n"
+					;
+			}
+			else {
+				shader <<
+					"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord);	\n"
+					;
+			}
+		}
+		else
+		{
+			if (!gles2_) {
+				shader <<
+					"#define READ_TEX(name, tex, texCoord, fbMonochrome, fbFixedAlpha)	\\\n"
+					"  {																\\\n"
+					"  if (fbMonochrome == 3) {											\\\n"
+					"    mediump ivec2 coord = ivec2(gl_FragCoord.xy);					\\\n"
+					"    name = texelFetch(tex, coord, 0);								\\\n"
+					"  } else {															\\\n"
+					"    name = texture(tex, texCoord);									\\\n"
+					"  }																\\\n"
+					"  if (fbMonochrome == 1) name = vec4(name.r);						\\\n"
+					"  else if (fbMonochrome == 2) 										\\\n"
+					"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
+					"  else if (fbMonochrome == 3) { 									\\\n"
+					"    name.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), name.rgb));	\\\n"
+					"    name.a = 0.0;													\\\n"
+					"  }																\\\n"
+					"  if (fbFixedAlpha == 1) name.a = 0.825;							\\\n"
+					"  }																\n"
+					;
+			}
+			else {
+				shader <<
+					"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha);	\n"
+					;
+			}
 		}
 	}
+
+private:
+	bool gles2_;
 };
 
 class ShaderFragmentMain : public ShaderPart
@@ -1285,10 +1355,12 @@ public:
 class ShaderFragmentBlendMux : public ShaderPart
 {
 public:
-	ShaderFragmentBlendMux(const opengl::GLInfo & _glinfo)
+	ShaderFragmentBlendMux() = default;
+
+	void write(std::stringstream& shader) const override
 	{
-		if (config.generalEmulation.enableLegacyBlending == 0) {
-			m_part =
+		if (!g_fastPath && config.generalEmulation.enableLegacyBlending == 0) {
+			shader <<
 				"  lowp mat4 muxPM = mat4(vec4(0.0), vec4(0.0), uBlendColor, uFogColor);	\n"
 				"  lowp vec4 muxA = vec4(0.0, uFogColor.a, vShadeColor.a, 0.0);				\n"
 				"  lowp vec4 muxB = vec4(0.0, 1.0, 1.0, 0.0);								\n"
@@ -1313,28 +1385,56 @@ class ShaderFragmentReadTexCopyMode : public ShaderPart
 {
 public:
 	ShaderFragmentReadTexCopyMode(const opengl::GLInfo & _glinfo)
+		: gles2_(_glinfo.isGLES2)
 	{
-		if (_glinfo.isGLES2) {
-			m_part =
-				"  nCurrentTile = 0; \n"
-				"  lowp vec4 readtex0 = readTex(uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);		\n"
-				;
-		} else {
-			if (config.video.multisampling > 0) {
-				m_part =
-					"  lowp vec4 readtex0;																	\n"
-					"  if (uMSTexEnabled[0] == 0) {															\n"
-					"      READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])		\n"
-					"  } else readtex0 = readTexMS(uMSTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);\n"
+	}
+
+	void write(std::stringstream& shader) const override
+	{
+		if (g_fastPath)
+		{
+			if (gles2_) {
+				shader <<
+					"  nCurrentTile = 0; \n"
+					"  lowp vec4 readtex0 = readTex(uTex0, vTexCoord0);		\n"
 					;
-			} else {
-				m_part =
-					"  lowp vec4 readtex0;																	\n"
-					"  READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])			\n"
+			}
+			else {
+				shader <<
+					"  lowp vec4 readtex0;								\n"
+					"  READ_TEX(readtex0, uTex0, vTexCoord0)			\n"
 					;
 			}
 		}
+		else
+		{
+			if (gles2_) {
+				shader <<
+					"  nCurrentTile = 0; \n"
+					"  lowp vec4 readtex0 = readTex(uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);		\n"
+					;
+			}
+			else {
+				if (config.video.multisampling > 0) {
+					shader <<
+						"  lowp vec4 readtex0;																	\n"
+						"  if (uMSTexEnabled[0] == 0) {															\n"
+						"      READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])		\n"
+						"  } else readtex0 = readTexMS(uMSTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);\n"
+						;
+				}
+				else {
+					shader <<
+						"  lowp vec4 readtex0;																	\n"
+						"  READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])			\n"
+						;
+				}
+			}
+		}
 	}
+
+private:
+	bool gles2_;
 };
 
 class ShaderFragmentReadTex0 : public ShaderPart
@@ -1347,35 +1447,66 @@ public:
 	void write(std::stringstream & shader) const override
 	{
 		std::string shaderPart;
+		if (g_fastPath)
+		{
+			if (m_glinfo.isGLES2) {
 
-		if (m_glinfo.isGLES2) {
+				shaderPart = "  nCurrentTile = 0; \n";
+				if (g_textureConvert.getBilerp0()) {
+					shaderPart += "  lowp vec4 readtex0 = readTex(uTex0, vTexCoord0);		\n";
+				}
+				else {
+					shaderPart += "  lowp vec4 tmpTex = vec4(0.0);																\n"
+						"  lowp vec4 readtex0 = YUV_Convert(uTex0, vTexCoord0, 0, uTextureFormat[0], tmpTex);			\n";
+				}
 
-			shaderPart = "  nCurrentTile = 0; \n";
-			if (g_textureConvert.getBilerp0()) {
-				shaderPart += "  lowp vec4 readtex0 = readTex(uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);		\n";
-			} else {
-				shaderPart += "  lowp vec4 tmpTex = vec4(0.0);																\n"
-							  "  lowp vec4 readtex0 = YUV_Convert(uTex0, vTexCoord0, 0, uTextureFormat[0], tmpTex);			\n";
 			}
+			else {
 
-		} else {
-
-			if (!g_textureConvert.getBilerp0()) {
-				shaderPart = "  lowp vec4 readtex0;																			\n"
-							 "  YUVCONVERT_TEX0(readtex0, uTex0, vTexCoord0, uTextureFormat[0])								\n";
-			} else {
-				if (config.video.multisampling > 0) {
-					shaderPart =
-						"  lowp vec4 readtex0;																				\n"
-						"  if (uMSTexEnabled[0] == 0) {																		\n"
-						"    READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])						\n"
-						"  } else readtex0 = readTexMS(uMSTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);			\n";
-				} else {
-					shaderPart = "  lowp vec4 readtex0;																		\n"
-								 "  READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])				\n";
+				if (!g_textureConvert.getBilerp0()) {
+					shaderPart = "  lowp vec4 readtex0;																			\n"
+						"  YUVCONVERT_TEX0(readtex0, uTex0, vTexCoord0, uTextureFormat[0])								\n";
+				}
+				else {
+					shaderPart = "  lowp vec4 readtex0;			          \n"
+								 "  READ_TEX(readtex0, uTex0, vTexCoord0) \n";
 				}
 			}
+		}
+		else
+		{
+			if (m_glinfo.isGLES2) {
 
+				shaderPart = "  nCurrentTile = 0; \n";
+				if (g_textureConvert.getBilerp0()) {
+					shaderPart += "  lowp vec4 readtex0 = readTex(uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);		\n";
+				}
+				else {
+					shaderPart += "  lowp vec4 tmpTex = vec4(0.0);																\n"
+						"  lowp vec4 readtex0 = YUV_Convert(uTex0, vTexCoord0, 0, uTextureFormat[0], tmpTex);			\n";
+				}
+
+			}
+			else {
+
+				if (!g_textureConvert.getBilerp0()) {
+					shaderPart = "  lowp vec4 readtex0;																			\n"
+						"  YUVCONVERT_TEX0(readtex0, uTex0, vTexCoord0, uTextureFormat[0])								\n";
+				}
+				else {
+					if (config.video.multisampling > 0) {
+						shaderPart =
+							"  lowp vec4 readtex0;																				\n"
+							"  if (uMSTexEnabled[0] == 0) {																		\n"
+							"    READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])						\n"
+							"  } else readtex0 = readTexMS(uMSTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0]);			\n";
+					}
+					else {
+						shaderPart = "  lowp vec4 readtex0;																		\n"
+							"  READ_TEX(readtex0, uTex0, vTexCoord0, uFbMonochrome[0], uFbFixedAlpha[0])				\n";
+					}
+				}
+			}
 		}
 
 		shader << shaderPart;
@@ -1395,36 +1526,68 @@ public:
 	void write(std::stringstream & shader) const override
 	{
 		std::string shaderPart;
+		if (g_fastPath)
+		{
+			if (m_glinfo.isGLES2) {
 
-		if (m_glinfo.isGLES2) {
+				shaderPart = "  nCurrentTile = 1; \n";
 
-			shaderPart = "  nCurrentTile = 1; \n";
-
-			if (g_textureConvert.getBilerp1()) {
-				shaderPart += "  lowp vec4 readtex1 = readTex(uTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1]);				\n";
-			} else {
-				shaderPart += "  lowp vec4 readtex1 = YUV_Convert(uTex1, vTexCoord1, uTextureConvert, uTextureFormat[1], readtex0);	\n";
-			}
-
-		} else {
-
-			if (!g_textureConvert.getBilerp1()) {
-				shaderPart =
-					"  lowp vec4 readtex1;																							\n"
-					"    YUVCONVERT_TEX1(readtex1, uTex1, vTexCoord1, uTextureFormat[1], readtex0)					\n";
-			} else {
-				if (config.video.multisampling > 0) {
-					shaderPart =
-						"  lowp vec4 readtex1;																						\n"
-						"  if (uMSTexEnabled[1] == 0) {																				\n"
-						"    READ_TEX(readtex1, uTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1])								\n"
-						"  } else readtex1 = readTexMS(uMSTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1]);					\n";
-				} else {
-					shaderPart = "  lowp vec4 readtex1;																				\n"
-								 "  READ_TEX(readtex1, uTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1])						\n";
+				if (g_textureConvert.getBilerp1()) {
+					shaderPart += "  lowp vec4 readtex1 = readTex(uTex1, vTexCoord1);				\n";
+				}
+				else {
+					shaderPart += "  lowp vec4 readtex1 = YUV_Convert(uTex1, vTexCoord1, uTextureConvert, uTextureFormat[1], readtex0);	\n";
 				}
 			}
+			else {
 
+				if (!g_textureConvert.getBilerp1()) {
+					shaderPart =
+						"  lowp vec4 readtex1;																							\n"
+						"    YUVCONVERT_TEX1(readtex1, uTex1, vTexCoord1, uTextureFormat[1], readtex0)					\n";
+				}
+				else {
+					shaderPart = "  lowp vec4 readtex1;					 \n"
+								 "  READ_TEX(readtex1, uTex1, vTexCoord1)\n";
+				}
+			}
+		}
+		else
+		{
+			if (m_glinfo.isGLES2) {
+
+				shaderPart = "  nCurrentTile = 1; \n";
+
+				if (g_textureConvert.getBilerp1()) {
+					shaderPart += "  lowp vec4 readtex1 = readTex(uTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1]);				\n";
+				}
+				else {
+					shaderPart += "  lowp vec4 readtex1 = YUV_Convert(uTex1, vTexCoord1, uTextureConvert, uTextureFormat[1], readtex0);	\n";
+				}
+
+			}
+			else {
+
+				if (!g_textureConvert.getBilerp1()) {
+					shaderPart =
+						"  lowp vec4 readtex1;																							\n"
+						"    YUVCONVERT_TEX1(readtex1, uTex1, vTexCoord1, uTextureFormat[1], readtex0)					\n";
+				}
+				else {
+					if (config.video.multisampling > 0) {
+						shaderPart =
+							"  lowp vec4 readtex1;																						\n"
+							"  if (uMSTexEnabled[1] == 0) {																				\n"
+							"    READ_TEX(readtex1, uTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1])								\n"
+							"  } else readtex1 = readTexMS(uMSTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1]);					\n";
+					}
+					else {
+						shaderPart = "  lowp vec4 readtex1;																				\n"
+							"  READ_TEX(readtex1, uTex1, vTexCoord1, uFbMonochrome[1], uFbFixedAlpha[1])						\n";
+					}
+				}
+
+			}
 		}
 
 		shader << shaderPart;
@@ -1943,53 +2106,87 @@ public:
 						"}																			\n"
 						;
 				}
-				shaderPart +=
-					"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha)	\n"
-					"{																			\n"
-					"  lowp vec4 texColor;														\n"
-					"  if (uTextureFilterMode == 0) texColor = texture2D(tex, texCoord);		\n"
-					"  else texColor = TextureFilter(tex, texCoord);							\n"
-					"  if (fbMonochrome == 1) texColor = vec4(texColor.r);						\n"
-					"  else if (fbMonochrome == 2) 												\n"
-					"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
-					"  if (fbFixedAlpha == 1) texColor.a = 0.825;								\n"
-					"  return texColor;															\n"
-					"}																			\n"
-					;
+
+				if (g_fastPath)
+					shaderPart +=
+						"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord)	\n"
+						"{																			\n"
+						"  lowp vec4 texColor;														\n"
+						"  if (uTextureFilterMode == 0) texColor = texture2D(tex, texCoord);		\n"
+						"  else texColor = TextureFilter(tex, texCoord);							\n"
+						"  return texColor;															\n"
+						"}																			\n"
+						;
+				else
+					shaderPart +=
+						"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha)	\n"
+						"{																			\n"
+						"  lowp vec4 texColor;														\n"
+						"  if (uTextureFilterMode == 0) texColor = texture2D(tex, texCoord);		\n"
+						"  else texColor = TextureFilter(tex, texCoord);							\n"
+						"  if (fbMonochrome == 1) texColor = vec4(texColor.r);						\n"
+						"  else if (fbMonochrome == 2) 												\n"
+						"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
+						"  if (fbFixedAlpha == 1) texColor.a = 0.825;								\n"
+						"  return texColor;															\n"
+						"}																			\n"
+						;
 			}
 		} else {
 			if (config.video.multisampling > 0 && g_textureConvert.useTextureFiltering()) {
-				shaderPart =
-					"uniform lowp int uMSAASamples;												\n"
-					"lowp vec4 sampleMS(in lowp sampler2DMS mstex, in mediump ivec2 ipos)		\n"
-					"{																			\n"
-					"  lowp vec4 texel = vec4(0.0);												\n"
-					"  for (int i = 0; i < uMSAASamples; ++i)									\n"
-					"    texel += texelFetch(mstex, ipos, i);									\n"
-					"  return texel / float(uMSAASamples);										\n"
-					"}																			\n"
-					"																			\n"
-					"lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha)	\n"
-					"{																			\n"
-					"  mediump ivec2 itexCoord;													\n"
-					"  if (fbMonochrome == 3) {													\n"
-					"    itexCoord = ivec2(gl_FragCoord.xy);									\n"
-					"  } else {																	\n"
-					"    mediump vec2 msTexSize = vec2(textureSize(mstex));						\n"
-					"    itexCoord = ivec2(msTexSize * texCoord);								\n"
-					"  }																		\n"
-					"  lowp vec4 texColor = sampleMS(mstex, itexCoord);							\n"
-					"  if (fbMonochrome == 1) texColor = vec4(texColor.r);						\n"
-					"  else if (fbMonochrome == 2) 												\n"
-					"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
-					"  else if (fbMonochrome == 3) { 											\n"
-					"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
-					"    texColor.a = 0.0;														\n"
-					"  }																		\n"
-					"  if (fbFixedAlpha == 1) texColor.a = 0.825;								\n"
-					"  return texColor;															\n"
-					"}																			\n"
-				;
+				if (g_fastPath)
+					shaderPart =
+						"uniform lowp int uMSAASamples;												\n"
+						"lowp vec4 sampleMS(in lowp sampler2DMS mstex, in mediump ivec2 ipos)		\n"
+						"{																			\n"
+						"  lowp vec4 texel = vec4(0.0);												\n"
+						"  for (int i = 0; i < uMSAASamples; ++i)									\n"
+						"    texel += texelFetch(mstex, ipos, i);									\n"
+						"  return texel / float(uMSAASamples);										\n"
+						"}																			\n"
+						"																			\n"
+						"lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord)		\n"
+						"{																			\n"
+						"  mediump ivec2 itexCoord;													\n"
+						"  {																		\n"
+						"    mediump vec2 msTexSize = vec2(textureSize(mstex));						\n"
+						"    itexCoord = ivec2(msTexSize * texCoord);								\n"
+						"  }																		\n"
+						"  return sampleMS(mstex, itexCoord);										\n"
+						"}																			\n"
+					;
+				else
+					shaderPart =
+						"uniform lowp int uMSAASamples;												\n"
+						"lowp vec4 sampleMS(in lowp sampler2DMS mstex, in mediump ivec2 ipos)		\n"
+						"{																			\n"
+						"  lowp vec4 texel = vec4(0.0);												\n"
+						"  for (int i = 0; i < uMSAASamples; ++i)									\n"
+						"    texel += texelFetch(mstex, ipos, i);									\n"
+						"  return texel / float(uMSAASamples);										\n"
+						"}																			\n"
+						"																			\n"
+						"lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha)	\n"
+						"{																			\n"
+						"  mediump ivec2 itexCoord;													\n"
+						"  if (fbMonochrome == 3) {													\n"
+						"    itexCoord = ivec2(gl_FragCoord.xy);									\n"
+						"  } else {																	\n"
+						"    mediump vec2 msTexSize = vec2(textureSize(mstex));						\n"
+						"    itexCoord = ivec2(msTexSize * texCoord);								\n"
+						"  }																		\n"
+						"  lowp vec4 texColor = sampleMS(mstex, itexCoord);							\n"
+						"  if (fbMonochrome == 1) texColor = vec4(texColor.r);						\n"
+						"  else if (fbMonochrome == 2) 												\n"
+						"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
+						"  else if (fbMonochrome == 3) { 											\n"
+						"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
+						"    texColor.a = 0.0;														\n"
+						"  }																		\n"
+						"  if (fbFixedAlpha == 1) texColor.a = 0.825;								\n"
+						"  return texColor;															\n"
+						"}																			\n"
+					;
 			}
 		}
 
@@ -2003,10 +2200,52 @@ private:
 class ShaderReadtexCopyMode : public ShaderPart
 {
 public:
-	ShaderReadtexCopyMode(const opengl::GLInfo & _glinfo)
+	ShaderReadtexCopyMode(const opengl::GLInfo& _glinfo)
+		: gles2_(_glinfo.isGLES2)
 	{
-		if (_glinfo.isGLES2) {
-			m_part =
+	}
+
+	void write(std::stringstream& shader) const override
+	{
+		if (g_fastPath)
+		{
+			if (gles2_) {
+				shader <<
+					"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord)\n"
+					"{															\n"
+					"  return texture2D(tex, texCoord);							\n"
+					"}														    \n"
+					;
+			}
+			else {
+				if (config.video.multisampling > 0) {
+					shader <<
+						"uniform lowp int uMSAASamples;												\n"
+						"lowp vec4 sampleMS(in lowp sampler2DMS mstex, in mediump ivec2 ipos)		\n"
+						"{																			\n"
+						"  lowp vec4 texel = vec4(0.0);												\n"
+						"  for (int i = 0; i < uMSAASamples; ++i)									\n"
+						"    texel += texelFetch(mstex, ipos, i);									\n"
+						"  return texel / float(uMSAASamples);										\n"
+						"}																			\n"
+						"																			\n"
+						"lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord)		\n"
+						"{																			\n"
+						"  mediump ivec2 itexCoord;													\n"
+						"  {																		\n"
+						"    mediump vec2 msTexSize = vec2(textureSize(mstex));						\n"
+						"    itexCoord = ivec2(msTexSize * texCoord);								\n"
+						"  }																		\n"
+						"  return sampleMS(mstex, itexCoord);										\n"
+						"}																			\n"
+						;
+				}
+			}
+		}
+		else
+		{
+			if (gles2_) {
+				shader <<
 					"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha)	\n"
 					"{																			\n"
 					"  lowp vec4 texColor = texture2D(tex, texCoord);							\n"
@@ -2016,43 +2255,48 @@ public:
 					"  if (fbFixedAlpha == 1) texColor.a = 0.825;								\n"
 					"  return texColor;															\n"
 					"}																			\n"
-				;
-		} else {
-			if (config.video.multisampling > 0) {
-				m_part =
-					"uniform lowp int uMSAASamples;												\n"
-					"lowp vec4 sampleMS(in lowp sampler2DMS mstex, in mediump ivec2 ipos)		\n"
-					"{																			\n"
-					"  lowp vec4 texel = vec4(0.0);												\n"
-					"  for (int i = 0; i < uMSAASamples; ++i)									\n"
-					"    texel += texelFetch(mstex, ipos, i);									\n"
-					"  return texel / float(uMSAASamples);										\n"
-					"}																			\n"
-					"																			\n"
-					"lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha)	\n"
-					"{																			\n"
-					"  mediump ivec2 itexCoord;													\n"
-					"  if (fbMonochrome == 3) {													\n"
-					"    itexCoord = ivec2(gl_FragCoord.xy);									\n"
-					"  } else {																	\n"
-					"    mediump vec2 msTexSize = vec2(textureSize(mstex));						\n"
-					"    itexCoord = ivec2(msTexSize * texCoord);								\n"
-					"  }																		\n"
-					"  lowp vec4 texColor = sampleMS(mstex, itexCoord);							\n"
-					"  if (fbMonochrome == 1) texColor = vec4(texColor.r);						\n"
-					"  else if (fbMonochrome == 2) 												\n"
-					"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
-					"  else if (fbMonochrome == 3) { 											\n"
-					"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
-					"    texColor.a = 0.0;														\n"
-					"  }																		\n"
-					"  if (fbFixedAlpha == 1) texColor.a = 0.825;								\n"
-					"  return texColor;															\n"
-					"}																			\n"
-				;
+					;
+			}
+			else {
+				if (config.video.multisampling > 0) {
+					shader <<
+						"uniform lowp int uMSAASamples;												\n"
+						"lowp vec4 sampleMS(in lowp sampler2DMS mstex, in mediump ivec2 ipos)		\n"
+						"{																			\n"
+						"  lowp vec4 texel = vec4(0.0);												\n"
+						"  for (int i = 0; i < uMSAASamples; ++i)									\n"
+						"    texel += texelFetch(mstex, ipos, i);									\n"
+						"  return texel / float(uMSAASamples);										\n"
+						"}																			\n"
+						"																			\n"
+						"lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha)	\n"
+						"{																			\n"
+						"  mediump ivec2 itexCoord;													\n"
+						"  if (fbMonochrome == 3) {													\n"
+						"    itexCoord = ivec2(gl_FragCoord.xy);									\n"
+						"  } else {																	\n"
+						"    mediump vec2 msTexSize = vec2(textureSize(mstex));						\n"
+						"    itexCoord = ivec2(msTexSize * texCoord);								\n"
+						"  }																		\n"
+						"  lowp vec4 texColor = sampleMS(mstex, itexCoord);							\n"
+						"  if (fbMonochrome == 1) texColor = vec4(texColor.r);						\n"
+						"  else if (fbMonochrome == 2) 												\n"
+						"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
+						"  else if (fbMonochrome == 3) { 											\n"
+						"    texColor.rgb = vec3(dot(vec3(0.2126, 0.7152, 0.0722), texColor.rgb));	\n"
+						"    texColor.a = 0.0;														\n"
+						"  }																		\n"
+						"  if (fbFixedAlpha == 1) texColor.a = 0.825;								\n"
+						"  return texColor;															\n"
+						"}																			\n"
+						;
+				}
 			}
 		}
 	}
+
+private:
+	bool gles2_;
 };
 
 class ShaderN64DepthCompare : public ShaderPart
@@ -2305,6 +2549,7 @@ graphics::CombinerProgram * CombinerProgramBuilder::buildCombinerProgram(Combine
 																		Combiner & _alpha,
 																		const CombinerKey & _key)
 {
+	g_fastPath = _key.fastPath();
 	g_cycleType = _key.getCycleType();
 	g_textureConvert.setMode(_key.getBilerp());
 
@@ -2524,7 +2769,7 @@ CombinerProgramBuilder::CombinerProgramBuilder(const opengl::GLInfo & _glinfo, o
 , m_fragmentHeaderReadTexCopyMode(new ShaderFragmentHeaderReadTexCopyMode(_glinfo))
 , m_fragmentMain(new ShaderFragmentMain(_glinfo))
 , m_fragmentMain2Cycle(new ShaderFragmentMain2Cycle(_glinfo))
-, m_fragmentBlendMux(new ShaderFragmentBlendMux(_glinfo))
+, m_fragmentBlendMux(new ShaderFragmentBlendMux)
 , m_fragmentReadTex0(new ShaderFragmentReadTex0(_glinfo))
 , m_fragmentReadTex1(new ShaderFragmentReadTex1(_glinfo))
 , m_fragmentReadTexCopyMode(new ShaderFragmentReadTexCopyMode(_glinfo))

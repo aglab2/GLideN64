@@ -11,3 +11,5 @@ u32 RDRAMSize = 0;
 N64Regs REG;
 
 bool ConfigOpen = false;
+
+TMEMCacheHashEntry TMEMCacheHash{};

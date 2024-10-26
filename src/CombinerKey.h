@@ -4,6 +4,21 @@
 
 class CombinerKey {
 public:
+	enum FastPath
+	{
+		// no optimizations applied
+		CKFP_DISABLED,
+		// in 1CYC passes without applying any blending
+		// in 2CYC multiplies by fog
+		CKFP_PASS,
+		// in 1CYC multiplies by combined alpha
+		// in 2CYC multiplies by fog, then multiplies by combined alpha
+		CKFP_TRANSLUCENT,
+		// in 1CYC reserved for future use
+		// in 2CYC passes without applying any blending
+		CKFP_PASS_TWICE,
+	};
+
 	CombinerKey() {
 		m_key.mux = 0;
 	}
@@ -23,6 +38,8 @@ public:
 	u32 getBilerp() const;
 
 	bool noAlpha() const;
+
+	FastPath fastPath() const;
 
 	u64 getMux() const { return m_key.mux; }
 

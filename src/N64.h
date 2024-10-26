@@ -45,5 +45,33 @@ extern u64 TMEM[512];
 extern u32 RDRAMSize;
 extern bool ConfigOpen;
 
+struct TMEMCacheHashEntry
+{
+	u32 off;
+	u32 size;
+	u32 hash;
+};
+extern TMEMCacheHashEntry TMEMCacheHash;
+
+static inline void tmemCacheHashInvalidate()
+{
+	TMEMCacheHash.off = 0;
+}
+
+static inline void tmemCacheHashSet(u32 off, u32 size, u32 hash)
+{
+	TMEMCacheHash.off = off;
+	TMEMCacheHash.size = size;
+	TMEMCacheHash.hash = hash;
+}
+
+static inline const u32* tmemCacheHashTryGet(u32 off, u32 size)
+{
+	if (TMEMCacheHash.off == off && TMEMCacheHash.size == size)
+		return &TMEMCacheHash.hash;
+	else
+		return nullptr;
+}
+
 #endif
 

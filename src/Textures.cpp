@@ -1321,9 +1321,17 @@ u32 _calculateCRC(u32 _t, const TextureParams & _params, u32 _bytes)
 	if (rgba32)
 		_bytes >>= 1;
 	const u32 tMemMask = (gDP.otherMode.textureLUT == G_TT_NONE && !rgba32) ? 0x1FF : 0xFF;
-	const u64 *src = (u64*)&TMEM[gSP.textureTile[_t]->tmem & tMemMask];
-	u32 crc = 0xFFFFFFFF;
-	crc = CRC_Calculate(crc, src, _bytes);
+	const u32 tmemIdx = gSP.textureTile[_t]->tmem & tMemMask;
+	const u64 *src = (u64*)&TMEM[tmemIdx];
+	u32 crc;
+	if (const u32* pcrc = tmemCacheHashTryGet(tmemIdx, _bytes))
+	{
+		crc = *pcrc;
+	}
+	else
+	{
+		crc = CRC_Calculate(0xFFFFFFFF, src, _bytes);
+	}
 
 	if (rgba32) {
 		src = (u64*)&TMEM[gSP.textureTile[_t]->tmem + 256];
