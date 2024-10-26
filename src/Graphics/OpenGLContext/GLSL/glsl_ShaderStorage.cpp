@@ -19,9 +19,11 @@
 #include "glsl_CombinerProgramImpl.h"
 #include "glsl_CombinerProgramUniformFactory.h"
 
+#include "Config.h"
+
 using namespace glsl;
 
-#define SHADER_STORAGE_FOLDER_NAME "shaders"
+#define SHADER_STORAGE_FOLDER_NAME "shaders_v2"
 
 static
 std::string getStorageFileName(const opengl::GLInfo & _glinfo, const char * _fileExtension)
@@ -65,8 +67,27 @@ std::string getStorageFileName(const opengl::GLInfo & _glinfo, const char * _fil
 		strOpenGLType = "OpenGL";
 	}
 
-	path << "/GLideN64." << std::hex << static_cast<u32>(std::hash<std::string>()(RSP.romname))
-		<< "." << strOpenGLType << "." << _fileExtension;
+	const unsigned globalKeys =
+		(config.generalEmulation.enableFragmentDepthWrite != 0) |
+		((config.generalEmulation.enableLOD != 0) << 1) |
+		((config.generalEmulation.enableNoise != 0) << 2) |
+		((config.generalEmulation.enableLegacyBlending != 0) << 3) |
+		((config.video.multisampling > 0) << 4) |
+		((config.frameBufferEmulation.enable != 0) << 5) |
+		((config.frameBufferEmulation.N64DepthCompare != 0) << 6) |
+		((config.texture.enableHalosRemoval != 0) << 7) |
+		((config.texture.bilinearMode & 3) << 8) |
+		(((unsigned)_glinfo.isGLESX) << 10) |
+		(((unsigned)_glinfo.isGLES2) << 11) |
+		(((unsigned)_glinfo.noPerspective) << 12) |
+		(((unsigned)_glinfo.fetch_depth) << 13) |
+		(((unsigned)_glinfo.fragment_interlock) << 14) |
+		(((unsigned)_glinfo.fragment_interlockNV) << 15) |
+		(((unsigned)_glinfo.fragment_ordering) << 16) |
+		(((unsigned)_glinfo.ext_fetch) << 17);
+
+
+	path << "/GLideN64." << std::hex << globalKeys << "." << strOpenGLType << "." << _fileExtension;
 
 	return path.str();
 }

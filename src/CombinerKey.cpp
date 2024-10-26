@@ -1,7 +1,6 @@
 #include "Combiner.h"
 #include "CombinerKey.h"
 
-#include "Config.h"
 #include "Textures.h"
 
 /*---------------CombinerKey-------------*/
@@ -48,7 +47,6 @@ CombinerKey::CombinerKey(u64 _mux, bool _setModeBits)
 	flags |= (noAlpha << 5);
 
 	FastPath fastPath = CKFP_DISABLED;
-	if (config.frameBufferEmulation.enable == 0)
 	{
 		bool forceBlender = gDP.otherMode.forceBlender;
 		if (G_CYC_1CYCLE == gDP.otherMode.cycleType)

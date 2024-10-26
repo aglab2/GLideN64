@@ -975,7 +975,7 @@ public:
 			config.video.multisampling > 0 &&
 			(g_cycleType == G_CYC_COPY || g_textureConvert.useTextureFiltering()))
 		{
-			if (g_fastPath)
+			if (!config.frameBufferEmulation.enable)
 				shader << "lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord);\n";
 			else
 				shader << "lowp vec4 readTexMS(in lowp sampler2DMS mstex, in highp vec2 texCoord, in lowp int fbMonochrome, in lowp int fbFixedAlpha);\n";
@@ -1157,7 +1157,7 @@ public:
 				break;
 				}
 
-				if (g_fastPath)
+				if (!config.frameBufferEmulation.enable)
 					shaderPart +=
 					"#define READ_TEX(name, tex, texCoord)								\\\n"
 					"  {																\\\n"
@@ -1219,7 +1219,7 @@ public:
 
 		} else {
 			if (g_textureConvert.useTextureFiltering()) {
-				if (g_fastPath)
+				if (!config.frameBufferEmulation.enable)
 					shaderPart +=
 						"uniform lowp int uTextureFilterMode;							\n"
 						"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord);	\n"
@@ -1257,7 +1257,7 @@ public:
 	
 	void write(std::stringstream& shader) const override
 	{
-		if (g_fastPath)
+		if (!config.frameBufferEmulation.enable)
 		{
 			if (!gles2_) {
 				shader <<
@@ -1391,7 +1391,7 @@ public:
 
 	void write(std::stringstream& shader) const override
 	{
-		if (g_fastPath)
+		if (!config.frameBufferEmulation.enable)
 		{
 			if (gles2_) {
 				shader <<
@@ -1447,7 +1447,7 @@ public:
 	void write(std::stringstream & shader) const override
 	{
 		std::string shaderPart;
-		if (g_fastPath)
+		if (!config.frameBufferEmulation.enable)
 		{
 			if (m_glinfo.isGLES2) {
 
@@ -1526,7 +1526,7 @@ public:
 	void write(std::stringstream & shader) const override
 	{
 		std::string shaderPart;
-		if (g_fastPath)
+		if (!config.frameBufferEmulation.enable)
 		{
 			if (m_glinfo.isGLES2) {
 
@@ -2107,7 +2107,7 @@ public:
 						;
 				}
 
-				if (g_fastPath)
+				if (!config.frameBufferEmulation.enable)
 					shaderPart +=
 						"lowp vec4 readTex(in sampler2D tex, in highp vec2 texCoord)	\n"
 						"{																			\n"
@@ -2134,7 +2134,7 @@ public:
 			}
 		} else {
 			if (config.video.multisampling > 0 && g_textureConvert.useTextureFiltering()) {
-				if (g_fastPath)
+				if (!config.frameBufferEmulation.enable)
 					shaderPart =
 						"uniform lowp int uMSAASamples;												\n"
 						"lowp vec4 sampleMS(in lowp sampler2DMS mstex, in mediump ivec2 ipos)		\n"
@@ -2207,7 +2207,7 @@ public:
 
 	void write(std::stringstream& shader) const override
 	{
-		if (g_fastPath)
+		if (!config.frameBufferEmulation.enable)
 		{
 			if (gles2_) {
 				shader <<
