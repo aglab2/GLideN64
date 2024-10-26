@@ -2418,8 +2418,53 @@ public:
 /*---------------ShaderPartsEnd-------------*/
 
 static
-bool needClampColor() {
-	return g_cycleType <= G_CYC_2CYCLE;
+bool needClampColor(const gDPCombine& _combine) {
+	if (g_cycleType > G_CYC_2CYCLE)
+		return false;
+
+	// check combiners for 1 and 2 cycle (2 cycle if needed)
+	bool a0 = _combine.saRGB0 == 15;
+	bool b0 = _combine.sbRGB0 == 15;
+	bool c0 = _combine.mRGB0  == 31;
+	bool d0 = _combine.aRGB0  == 7;
+
+	// Formula looks like (A-B)*C+D. Need clamping when it is possible that "(...-B)*(...)" or "(...)+D"" has overflown.
+	// Also exclude mix case like "(A-X)*C+X -> A*C+X*(1-C)" that does not overflow
+	bool colorTrivial = c0 || (a0 && b0) || (_combine.saRGB0 == _combine.sbRGB0) || (b0 && d0) || (_combine.sbRGB0 == _combine.aRGB0);
+	if (!colorTrivial)
+		return true;
+
+	bool Aa0 = _combine.saA0 == 15;
+	bool Ab0 = _combine.sbA0 == 15;
+	bool Ac0 = _combine.mA0 == 31;
+	bool Ad0 = _combine.aA0 == 7;
+
+	bool alphaTrivial = Ac0 || (Aa0 && Ab0) || (_combine.saA0 == _combine.sbA0) || (Ab0 && Ad0) || (_combine.sbA0 == _combine.aA0);
+	if (!alphaTrivial)
+		return true;
+
+	if (g_cycleType != G_CYC_2CYCLE)
+		return false;
+
+	bool a1 = _combine.saRGB1 == 15;
+	bool b1 = _combine.sbRGB1 == 15;
+	bool c1 = _combine.mRGB1 == 31;
+	bool d1 = _combine.aRGB1 == 7;
+
+	bool colorTrivial2 = c1 || (a1 && b1) || (_combine.saRGB1 == _combine.sbRGB1) || (b1 && d1) || (_combine.sbRGB1 == _combine.aRGB1);
+	if (!colorTrivial2)
+		return true;
+
+	bool Aa1 = _combine.saA1 == 15;
+	bool Ab1 = _combine.sbA1 == 15;
+	bool Ac1 = _combine.mA1 == 31;
+	bool Ad1 = _combine.aA1 == 7;
+
+	bool alphaTrivial2 = Ac1 || (Aa1 && Ab1) || (_combine.saA1 == _combine.sbA1) || (Ab1 && Ad1) || (_combine.sbA1 == _combine.aA1);
+	if (!alphaTrivial2)
+		return true;
+
+	return false;
 }
 
 static
@@ -2520,7 +2565,7 @@ CombinerInputs CombinerProgramBuilder::compileCombiner(const CombinerKey & _key,
 	}
 
 	// Simulate N64 color clamp.
-	if (needClampColor())
+	if (needClampColor(combine)) 
 		m_clamp->write(ssShader);
 	else
 		ssShader << "  lowp vec4 clampedColor = clamp(cmbRes, 0.0, 1.0);" << std::endl;
