@@ -663,13 +663,13 @@ static uint32_t sTmemFrame = 0;
 struct TmemCacheEntryDesc
 {
 	uint32_t address;
-	uint32_t bytes;
-	uint32_t dxt;
+	uint16_t qwords;
+	uint16_t dxt;
 	uint32_t crc;
 
-	bool matches(uint32_t _address, uint32_t _bytes, uint32_t _dxt) const
+	bool matches(uint32_t _address, uint32_t _qwords, uint32_t _dxt) const
 	{
-		return address == _address && bytes == _bytes && dxt == _dxt;
+		return address == _address && qwords == _qwords && dxt == _dxt;
 	}
 };
 
@@ -694,39 +694,47 @@ static inline uint32_t hashInt32(uint32_t x)
 	return std::hash<uint32_t>()(x) & (TMEM_CACHE_SIZE - 1);
 }
 
-static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint16_t bytes, uint16_t dxt)
+static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint16_t qwords, uint16_t dxt)
 {
 	uint32_t hash = hashInt32(address);
 	TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
 	Tmem& tmem = sTmemCache[hash];
 	entry.address = address;
-	entry.bytes = bytes;
+	entry.qwords = qwords;
 	entry.dxt = dxt;
-	entry.crc = CRC_Calculate(0xffffffff, &TMEM[tmemIdx], bytes);
-	__builtin_memcpy(tmem.data, &TMEM[tmemIdx], bytes);
-	tmemCacheHashSet(tmemIdx, bytes, entry.crc);
+	entry.crc = CRC_Calculate(0xffffffff, &TMEM[tmemIdx], qwords << 3);
+#if 0
+	__builtin_memcpy(tmem.data, &TMEM[tmemIdx], qwords << 3);
+#else
+	__movsd((unsigned long*)tmem.data, (unsigned long*)&TMEM[tmemIdx], qwords << 1);
+#endif
+	tmemCacheHashSet(tmemIdx, qwords >> 3, entry.crc);
 }
 
-static Tmem* tmemFindCacheEntry(uint32_t address, uint16_t bytes, uint16_t dxt)
+static Tmem* tmemFindCacheEntry(uint32_t address, uint16_t qwords, uint16_t dxt)
 {
 	uint32_t hash = hashInt32(address);
 	const TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
-	if (entry.matches(address, bytes, dxt))
+	if (entry.matches(address, qwords, dxt))
 		return &sTmemCache[hash];
 	else
 		return nullptr;
 }
 
-static bool tmemTryLoadFromCache(uint32_t address, uint32_t tmemIdx, uint16_t bytes, uint16_t dxt)
+static bool tmemTryLoadFromCache(uint32_t address, uint32_t tmemIdx, uint16_t qwords, uint16_t dxt)
 {
-	Tmem* cacheEntry = tmemFindCacheEntry(address, bytes, dxt);
+	Tmem* cacheEntry = tmemFindCacheEntry(address, qwords, dxt);
 	if (cacheEntry == nullptr)
 		return false;
 
 	uint32_t hash = hashInt32(address);
 	const TmemCacheEntryDesc& entry = sTmemCacheEntryDescriptors[hash];
-	__builtin_memcpy(&TMEM[tmemIdx], cacheEntry->data, bytes);
-	tmemCacheHashSet(tmemIdx, bytes, entry.crc);
+#if 0
+	__builtin_memcpy(&TMEM[tmemIdx], cacheEntry->data, qwords << 3);
+#else
+	__movsd((unsigned long*)&TMEM[tmemIdx], (unsigned long*)cacheEntry->data, qwords << 1);
+#endif
+	tmemCacheHashSet(tmemIdx, qwords, entry.crc);
 	return true;
 }
 
@@ -790,7 +798,7 @@ void gDPLoadBlock(u32 tile, u32 uls, u32 ult, u32 lrs, u32 dxt)
 		bool load = true;
 		if (canCache)
 		{
-			load = !tmemTryLoadFromCache(address, tmemAddr, bytes, dxt);
+			load = !tmemTryLoadFromCache(address, tmemAddr, bytes >> 3, dxt);
 		}
 
 		if (load)
@@ -825,7 +833,7 @@ void gDPLoadBlock(u32 tile, u32 uls, u32 ult, u32 lrs, u32 dxt)
 
 			if (canCache)
 			{
-				tmemAddCacheEntry(address, tmemAddrForCache, bytes, dxt);
+				tmemAddCacheEntry(address, tmemAddrForCache, bytes >> 3, dxt);
 			}
 		}
 	}

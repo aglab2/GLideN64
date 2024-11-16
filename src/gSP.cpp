@@ -474,10 +474,15 @@ void gSPInverseTransformVector(Vec& vec, Mtx mtx)
 
 static void processStandardLight(u32 i, SPVertex& vtx)
 {
+#if 0
 	const f32 intensity = DotProduct(vtx.normal, gSP.lights.i_xyz[i].vec());
 	if (intensity > 0.0f) {
 		vtx.color += gSP.lights.rgb[i].vec() * intensity;
 	}
+#else
+	const Vec intensity = DotProductV(vtx.normal, gSP.lights.i_xyz[i].vec());
+	vtx.color += intensity > 0.0f ? gSP.lights.rgb[i].vec() * intensity : 0.0f;
+#endif
 }
 
 template <u32 VNUM>

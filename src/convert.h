@@ -83,7 +83,7 @@ static inline void UnswapCopyWrap(const u8* __restrict src, u32 srcIdx, u8* __re
 		// copy dwords
 		int numDWords = numBytes >> 2;
 		while (numDWords--) {
-			*(uint32_t*)&dest[destIdx] = __builtin_bswap32(*(uint32_t*)&src[srcIdx]);
+			*(u32*)&dest[destIdx] = __builtin_bswap32(*(u32*)&src[srcIdx]);
 			destIdx += 4;
 			srcIdx += 4;
 		}

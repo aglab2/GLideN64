@@ -19,6 +19,7 @@ void Normalize(Vec& v);
 
 inline Mtx MultMatrix(Mtx m0, const Mtx& m1)
 {
+#if 0
 	int i;
 	Mtx mdest;
 	for (i = 0; i < 4; i++)
@@ -30,6 +31,29 @@ inline Mtx MultMatrix(Mtx m0, const Mtx& m1)
 	}
 
 	return mdest;
+#else
+	Vec x = m0[0] * m1[0][0];
+	x += m0[1] * m1[0][1];
+	x += m0[2] * m1[0][2];
+	x += m0[3] * m1[0][3];
+
+	Vec y = m0[0] * m1[1][0];
+	y += m0[1] * m1[1][1];
+	y += m0[2] * m1[1][2];
+	y += m0[3] * m1[1][3];
+
+	Vec z = m0[0] * m1[2][0];
+	z += m0[1] * m1[2][1];
+	z += m0[2] * m1[2][2];
+	z += m0[3] * m1[2][3];
+
+	Vec w = m0[0] * m1[3][0];
+	w += m0[1] * m1[3][1];
+	w += m0[2] * m1[3][2];
+	w += m0[3] * m1[3][3];
+
+	return { x, y, z, w };
+#endif
 }
 
 inline void MultMatrix2(Mtx& m0, Mtx m1)
@@ -83,6 +107,15 @@ inline float DotProduct(Vec v0, Vec v1)
 {
 	Vec mult = v0 * v1;
 	return mult[0] + mult[1] + mult[2];
+}
+
+inline Vec DotProductV(Vec v0, Vec v1)
+{
+	Vec mult = v0 * v1;
+	Vec m0 = __builtin_shufflevector(mult, mult, 0, 0, 0, 0);
+	Vec m1 = __builtin_shufflevector(mult, mult, 1, 1, 1, 1);
+	Vec m2 = __builtin_shufflevector(mult, mult, 2, 2, 2, 2);
+	return m0 + m1 + m2;
 }
 
 inline float GetFloatMatrixElement(s16 _int, u16 _fract)
