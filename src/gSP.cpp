@@ -244,6 +244,8 @@ void gSPDMAMatrix( u32 matrix, u8 index, u8 multiply )
 		mtx[3][0], mtx[3][1], mtx[3][2], mtx[3][3] );
 }
 
+#define G_F3DEX3_NEW_MAXZ 0x7FFF
+
 void gSPViewport( u32 v )
 {
 	u32 address = RSP_SegmentToPhysical( v );
@@ -263,8 +265,18 @@ void gSPViewport( u32 v )
 	gSP.viewport.vtrans[2] = _FIXED2FLOAT( *(s16*)&RDRAM[address + 14], 10 );// * 0.00097847357f;
 	gSP.viewport.vtrans[3] = *(s16*)&RDRAM[address + 12];
 
-	if (gSP.viewport.vscale[1] < 0.0f && !GBI.isNegativeY())
-		gSP.viewport.vscale[1] = -gSP.viewport.vscale[1];
+	if (gSP.viewport.vscale[1] < 0.0f)
+	{
+		if (!GBI.isNegativeY())
+		{
+			gSP.viewport.vscale[1] = -gSP.viewport.vscale[1];
+			if (GBI.getMicrocodeType() == F3DEX3)
+			{
+				gSP.viewport.vscale[2] /= (G_F3DEX3_NEW_MAXZ / 2) / 511.f;
+				gSP.viewport.vtrans[2] /= (G_F3DEX3_NEW_MAXZ / 2) / 511.f;
+			}
+		}
+	}
 
 	gSP.viewport.x		= gSP.viewport.vtrans[0] - gSP.viewport.vscale[0];
 	gSP.viewport.y		= gSP.viewport.vtrans[1] - gSP.viewport.vscale[1];
