@@ -83,7 +83,7 @@ static void writeLight(int off, u32 w)
 		gSPLookAt(w - (sizeof(F3DEX3_LookAtOld) - sizeof(F3DEX3_LookAt)) + sizeof(F3DEX3_LookAt), 1);
 	}
 
-	for (int i = 1; i <= gSP.numLights; i++)
+	for (int i = 1; i <= gSP.numLights + 1; i++)
 	{
 		if (_LIGHT_TO_OFFSET(i) == off)
 		{
@@ -91,10 +91,6 @@ static void writeLight(int off, u32 w)
 		}
 	}
 
-	if (_LIGHT_TO_OFFSET(gSP.numLights + 1) == off)
-	{
-		// TODO: Write ambient lights
-	}
 	if ((F3DEX3_G_MAX_LIGHTS * 0x10) + 0x18 == off)
 	{
 		// TODO: OcclusionPlane not supported

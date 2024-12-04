@@ -322,7 +322,7 @@ void gSPLight( u32 l, s32 n )
 
 	Light *light = (Light*)&RDRAM[addrByte];
 
-	if (n < 9) {
+	if (n < 10) {
 		gSP.lights.rgb[n][R] = _FIXED2FLOATCOLOR(light->r,8);
 		gSP.lights.rgb[n][G] = _FIXED2FLOATCOLOR(light->g,8);
 		gSP.lights.rgb[n][B] = _FIXED2FLOATCOLOR(light->b,8);
