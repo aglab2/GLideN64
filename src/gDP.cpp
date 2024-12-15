@@ -708,7 +708,7 @@ static void tmemAddCacheEntry(uint32_t address, uint32_t tmemIdx, uint16_t qword
 #else
 	__movsd((unsigned long*)tmem.data, (unsigned long*)&TMEM[tmemIdx], qwords << 1);
 #endif
-	tmemCacheHashSet(tmemIdx, qwords >> 3, entry.crc);
+	tmemCacheHashSet(tmemIdx, qwords << 3, entry.crc);
 }
 
 static Tmem* tmemFindCacheEntry(uint32_t address, uint16_t qwords, uint16_t dxt)
@@ -841,6 +841,14 @@ void gDPLoadBlock(u32 tile, u32 uls, u32 ult, u32 lrs, u32 dxt)
 	DebugMsg( DEBUG_NORMAL, "gDPLoadBlock( %i, %i, %i, %i, %i );\n", tile, uls, ult, lrs, dxt );
 }
 
+// Compiler will play dumb if I don't do this (and it still plays a bit dumb)
+static void copyFastPalette(const u8* __restrict src, u16* __restrict dst)
+{
+	for (u16 j = 0; j < 16; ++j) {
+		dst[j * 4] = swapword(*(const u16*)(src + ((j * 2) ^ 2)));
+	}
+}
+
 void gDPLoadTLUT( u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt )
 {
 	gDPSetTileSize( tile, uls, ult, lrs, lrt );
@@ -852,20 +860,48 @@ void gDPLoadTLUT( u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt )
 	u32 address = gDP.textureImage.address + gDP.tiles[tile].ult * gDP.textureImage.bpl + (gDP.tiles[tile].uls << gDP.textureImage.size >> 1);
 	u16 pal = (u16)((gDP.tiles[tile].tmem - 256) >> 4);
 	u16 * dest = reinterpret_cast<u16*>(TMEM);
-	u32 destIdx = gDP.tiles[tile].tmem << 2;
+	u32 destIdx = 0x400 | (gDP.tiles[tile].tmem << 2);
 
-	tmemCacheHashInvalidate();
+	if (TMEMCacheHash.off > 0x400)
+		tmemCacheHashInvalidate();
 
-	int i = 0;
-	while (i < count) {
-		for (u16 j = 0; (j < 16) && (i < count); ++j, ++i) {
-			dest[(destIdx | 0x0400) & 0x07FF] = swapword(*(u16*)(RDRAM + (address ^ 2)));
-			address += 2;
-			destIdx += 4;
+	if ((0 == (address & 0x3)) && (destIdx < 0x800 - count * 4))
+	{
+		int i = 0;
+		while (i < count) {
+			if (i + 16 < count)
+			{
+				copyFastPalette(RDRAM + address, dest + destIdx);
+				i += 16;
+				address += 32;
+				destIdx += 64;
+			}
+			else
+			{
+				for (u16 j = 0; (j < 16) && (i < count); ++j, ++i) {
+					dest[destIdx] = swapword(*(u16*)(RDRAM + (address ^ 2)));
+					address += 2;
+					destIdx += 4;
+				}
+			}
+
+			gDP.paletteCRC16[pal] = CRC_CalculatePalette(0xFFFFFFFF, &TMEM[256 + (pal << 4)]);
+			pal = (pal + 1) & 0x0F;
 		}
+	}
+	else
+	{
+		int i = 0;
+		while (i < count) {
+			for (u16 j = 0; (j < 16) && (i < count); ++j, ++i) {
+				dest[(destIdx | 0x0400) & 0x07FF] = swapword(*(u16*)(RDRAM + (address ^ 2)));
+				address += 2;
+				destIdx += 4;
+			}
 
-		gDP.paletteCRC16[pal] = CRC_CalculatePalette(0xFFFFFFFF, &TMEM[256 + (pal << 4)], 16);
-		pal = (pal + 1) & 0x0F;
+			gDP.paletteCRC16[pal] = CRC_CalculatePalette(0xFFFFFFFF, &TMEM[256 + (pal << 4)]);
+			pal = (pal + 1) & 0x0F;
+		}
 	}
 
 	gDP.paletteCRC256 = CRC_Calculate(0xFFFFFFFF, gDP.paletteCRC16, 64);

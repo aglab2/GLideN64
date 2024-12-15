@@ -55,7 +55,7 @@ extern TMEMCacheHashEntry TMEMCacheHash;
 
 static inline void tmemCacheHashInvalidate()
 {
-	TMEMCacheHash.off = 0;
+	TMEMCacheHash.off = -1;
 }
 
 static inline void tmemCacheHashSet(u32 off, u32 size, u32 hash)
